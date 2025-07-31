@@ -1,0 +1,27 @@
+{
+  "displayName": "ZapSign Trigger",
+  "name": "zapSignTrigger",
+  "icon": "file:zapsign.svg",
+  "group": ["trigger"],
+  "version": 1,
+  "description": "Starts the workflow when ZapSign events occur",
+  "defaults": {
+    "name": "ZapSign Trigger"
+  },
+  "inputs": [],
+  "outputs": ["main"],
+  "credentials": [
+    {
+      "name": "zapSignApi",
+      "required": true
+    }
+  ],
+  "webhooks": [
+    {
+      "name": "default",
+      "httpMethod": "POST",
+      "responseMode": "onReceived",
+      "path": "webhook"
+    }
+  ]
+} 

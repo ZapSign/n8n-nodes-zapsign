@@ -20,9 +20,9 @@
   },
   "main": "index.js",
   "scripts": {
-    "build": "echo 'Build completed'",
-    "compile": "echo 'Compile completed'",
-    "gulp-build": "echo 'Gulp build completed'",
+    "build": "rm -rf dist && npm run compile && npm run gulp-build",
+    "compile": "npx tsc",
+    "gulp-build": "npx gulp build:icons",
     "dev": "tsc --watch",
     "format": "prettier nodes credentials --write",
     "lint": "eslint nodes credentials package.json",
