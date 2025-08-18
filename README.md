@@ -203,6 +203,10 @@ For ZapSign-specific questions, contact ZapSign support at support@zapsign.co
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
+### 1.0.4
+- Corrigido endpoint de teste para autenticação
+
+
 
 ### 1.0.0
 - Initial release
