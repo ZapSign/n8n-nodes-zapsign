@@ -203,6 +203,10 @@ For ZapSign-specific questions, contact ZapSign support at support@zapsign.co
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
+### 1.0.6
+- Corrigido formato de autenticação: alterado de 'Authorization: Bearer' para 'apikey'
+
+
 ### 1.0.5
 - Corrigido endpoint de teste para o caminho correto da API ZapSign: /api/v1/docs/?page=1
 
