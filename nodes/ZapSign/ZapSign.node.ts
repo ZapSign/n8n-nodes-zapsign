@@ -508,6 +508,12 @@ export class ZapSign implements INodeType {
 		const resource = this.getNodeParameter('resource', 0);
 		const operation = this.getNodeParameter('operation', 0);
 
+		// Resolve base URL from credentials once
+		const credentials = await this.getCredentials('zapSignApi');
+		const baseUrl = (credentials as IDataObject).environment === 'sandbox'
+			? 'https://sandbox.api.zapsign.com.br'
+			: 'https://api.zapsign.com.br';
+
 		for (let i = 0; i < items.length; i++) {
 			try {
 				if (resource === 'document') {
@@ -522,7 +528,7 @@ export class ZapSign implements INodeType {
 						// For file upload, we need to use form-data
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: '/v1/documents',
+							url: `${baseUrl}/api/v1/docs`,
 							formData: {
 								name,
 								file: {
@@ -549,7 +555,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `/v1/documents/${documentId}`,
+							url: `${baseUrl}/api/v1/docs/${documentId}`,
 						};
 
 						const responseData = await this.helpers.requestWithAuthentication.call(
@@ -565,7 +571,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: '/v1/documents',
+							url: `${baseUrl}/api/v1/docs`,
 							qs: {
 								limit,
 							},
@@ -590,7 +596,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `/v1/documents/${documentId}/send`,
+							url: `${baseUrl}/api/v1/docs/${documentId}/send`,
 							body: {},
 						};
 
@@ -607,7 +613,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `/v1/documents/${documentId}/cancel`,
+							url: `${baseUrl}/api/v1/docs/${documentId}/cancel`,
 							body: {},
 						};
 
@@ -624,7 +630,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `/v1/documents/${documentId}/download`,
+							url: `${baseUrl}/api/v1/docs/${documentId}/download`,
 							encoding: null, // Get binary data
 						};
 
@@ -675,7 +681,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `/v1/documents/${documentId}/signers`,
+							url: `${baseUrl}/api/v1/docs/${documentId}/signers`,
 							body,
 						};
 
@@ -690,7 +696,7 @@ export class ZapSign implements INodeType {
 						// Get all signers
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `/v1/documents/${documentId}/signers`,
+							url: `${baseUrl}/api/v1/docs/${documentId}/signers`,
 						};
 
 						const responseData = await this.helpers.requestWithAuthentication.call(
@@ -711,7 +717,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'DELETE',
-							url: `/v1/documents/${documentId}/signers/${encodeURIComponent(signerEmail)}`,
+							url: `${baseUrl}/api/v1/docs/${documentId}/signers/${encodeURIComponent(signerEmail)}`,
 						};
 
 						const responseData = await this.helpers.requestWithAuthentication.call(
@@ -743,7 +749,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'PUT',
-							url: `/v1/documents/${documentId}/signers/${encodeURIComponent(signerEmail)}`,
+							url: `${baseUrl}/api/v1/docs/${documentId}/signers/${encodeURIComponent(signerEmail)}`,
 							body,
 						};
 
@@ -762,7 +768,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: '/v1/templates',
+							url: `${baseUrl}/api/v1/templates`,
 							qs: {
 								limit,
 							},
@@ -792,7 +798,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: '/v1/documents/from-template',
+							url: `${baseUrl}/api/v1/docs/from-template`,
 							body,
 						};
 
@@ -817,7 +823,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: '/v1/webhooks',
+							url: `${baseUrl}/api/v1/webhooks`,
 							body,
 						};
 
@@ -834,7 +840,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: '/v1/webhooks',
+							url: `${baseUrl}/api/v1/webhooks`,
 							qs: {
 								limit,
 							},
@@ -858,7 +864,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'DELETE',
-							url: `/v1/webhooks/${webhookId}`,
+							url: `${baseUrl}/api/v1/webhooks/${webhookId}`,
 						};
 
 						const responseData = await this.helpers.requestWithAuthentication.call(

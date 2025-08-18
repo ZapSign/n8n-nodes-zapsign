@@ -45,15 +45,13 @@ export class ZapSignApi implements ICredentialType {
 		properties: {
 			headers: {
 				'Authorization': '=Bearer {{$credentials.apiKey}}',
-				'Content-Type': 'application/json',
-				'Accept': 'application/json',
 			},
 		},
 	};
 
 	test: ICredentialTestRequest = {
 		request: {
-			baseURL: '={{$credentials.environment === "sandbox" ? "https://sandbox.api.zapsign.com.br/" : "https://api.zapsign.com.br/"}}',
+			baseURL: '={{$credentials.environment === "sandbox" ? "https://sandbox.api.zapsign.com.br" : "https://api.zapsign.com.br"}}',
 			url: '/api/v1/docs/?page=1',
 			method: 'GET',
 		},

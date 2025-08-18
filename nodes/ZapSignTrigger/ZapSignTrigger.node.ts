@@ -137,13 +137,13 @@ export class ZapSignTrigger implements INodeType {
 
 				const credentials = await this.getCredentials('zapSignApi');
 				const baseUrl = credentials.environment === 'sandbox' 
-					? 'https://sandbox.api.zapsign.com.br/' 
-					: 'https://api.zapsign.com.br/';
+					? 'https://sandbox.api.zapsign.com.br' 
+					: 'https://api.zapsign.com.br';
 
 				try {
 					const response = await this.helpers.request({
 						method: 'GET',
-						url: `${baseUrl}/v1/webhooks`,
+						url: `${baseUrl}/api/v1/webhooks`,
 						headers: {
 							'Authorization': `Bearer ${credentials.apiKey}`,
 							'Content-Type': 'application/json',
@@ -171,8 +171,8 @@ export class ZapSignTrigger implements INodeType {
 
 				const credentials = await this.getCredentials('zapSignApi');
 				const baseUrl = credentials.environment === 'sandbox' 
-					? 'https://sandbox.api.zapsign.com.br/' 
-					: 'https://api.zapsign.com.br/';
+					? 'https://sandbox.api.zapsign.com.br' 
+					: 'https://api.zapsign.com.br';
 
 				const body = {
 					url: webhookUrl,
@@ -183,7 +183,7 @@ export class ZapSignTrigger implements INodeType {
 				try {
 					const responseData = await this.helpers.request({
 						method: 'POST',
-						url: `${baseUrl}/v1/webhooks`,
+						url: `${baseUrl}/api/v1/webhooks`,
 						body,
 						headers: {
 							'Authorization': `Bearer ${credentials.apiKey}`,
@@ -209,13 +209,13 @@ export class ZapSignTrigger implements INodeType {
 				if (webhookData.webhookId !== undefined) {
 					const credentials = await this.getCredentials('zapSignApi');
 					const baseUrl = credentials.environment === 'sandbox' 
-						? 'https://sandbox.api.zapsign.com.br/' 
-						: 'https://api.zapsign.com.br/';
+						? 'https://sandbox.api.zapsign.com.br' 
+						: 'https://api.zapsign.com.br';
 
 					try {
 						await this.helpers.request({
 							method: 'DELETE',
-							url: `${baseUrl}/v1/webhooks/${webhookData.webhookId}`,
+							url: `${baseUrl}/api/v1/webhooks/${webhookData.webhookId}`,
 							headers: {
 								'Authorization': `Bearer ${credentials.apiKey}`,
 							},
