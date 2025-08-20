@@ -64,6 +64,10 @@ export class ZapSign implements INodeType {
 						value: 'template',
 					},
 					{
+						name: 'Background Check',
+						value: 'backgroundCheck',
+					},
+					{
 						name: 'Webhook',
 						value: 'webhook',
 					},
@@ -267,6 +271,21 @@ export class ZapSign implements INodeType {
 					},
 				],
 				default: 'create',
+			},
+			// Background Check operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['backgroundCheck'] } },
+				options: [
+					{ name: 'Create Person Check', value: 'createPerson', action: 'Create person background check' },
+					{ name: 'Create Company Check', value: 'createCompany', action: 'Create company background check' },
+					{ name: 'Get Check', value: 'get', action: 'Retrieve a background check' },
+					{ name: 'Get Check Details', value: 'details', action: 'Retrieve background check details' },
+				],
+				default: 'createPerson',
 			},
 			// Document fields
 			{
@@ -1867,6 +1886,50 @@ export class ZapSign implements INodeType {
 				},
 				description: 'Sort order for the results',
 			},
+			// Background Check fields
+			{
+				displayName: 'External ID',
+				name: 'bcExternalId',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['createPerson', 'createCompany'] } },
+				description: 'Your external identifier for the check (optional)',
+			},
+			{
+				displayName: 'Person Document (CPF)',
+				name: 'personCpf',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['createPerson'] } },
+				description: 'CPF of the person to check',
+			},
+			{
+				displayName: 'Person Name',
+				name: 'personName',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['createPerson'] } },
+				description: 'Full name of the person (optional)',
+			},
+			{
+				displayName: 'Company Document (CNPJ)',
+				name: 'companyCnpj',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['createCompany'] } },
+				description: 'CNPJ of the company to check',
+			},
+			{
+				displayName: 'Check Token',
+				name: 'checkToken',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['get', 'details'] } },
+				description: 'Token of the background check to retrieve',
+			},
 			{
 				displayName: 'Limit',
 				name: 'limit',
@@ -2714,6 +2777,50 @@ export class ZapSign implements INodeType {
 						pushResult(returnData, responseData);
 					}
 
+				} else if (resource === 'backgroundCheck') {
+					if (operation === 'createPerson') {
+						const personCpf = this.getNodeParameter('personCpf', i) as string;
+						const personName = this.getNodeParameter('personName', i, '') as string;
+						const externalId = this.getNodeParameter('bcExternalId', i, '') as string;
+						const body: IDataObject = { cpf: personCpf };
+						if (personName) body.name = personName;
+						if (externalId) body.external_id = externalId;
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/background-checks/person/`,
+							body,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'createCompany') {
+						const companyCnpj = this.getNodeParameter('companyCnpj', i) as string;
+						const externalId = this.getNodeParameter('bcExternalId', i, '') as string;
+						const body: IDataObject = { cnpj: companyCnpj };
+						if (externalId) body.external_id = externalId;
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/background-checks/company/`,
+							body,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'get') {
+						const checkToken = this.getNodeParameter('checkToken', i) as string;
+						const options: IRequestOptions = {
+							method: 'GET',
+							url: `${baseUrl}/api/v1/background-checks/${encodeURIComponent(checkToken)}/`,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'details') {
+						const checkToken = this.getNodeParameter('checkToken', i) as string;
+						const options: IRequestOptions = {
+							method: 'GET',
+							url: `${baseUrl}/api/v1/background-checks/${encodeURIComponent(checkToken)}/details/`,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					}
 				} else if (resource === 'webhook') {
 					if (operation === 'create') {
 						// Create webhook
