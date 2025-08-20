@@ -123,10 +123,40 @@ export class ZapSign implements INodeType {
 						action: 'Cancel a document',
 					},
 					{
+						name: 'Refuse (Reprovar)',
+						value: 'refuse',
+						description: 'Refuse a document (same as cancel)',
+						action: 'Refuse a document',
+					},
+					{
 						name: 'Download',
 						value: 'download',
 						description: 'Download a signed document',
 						action: 'Download a document',
+					},
+					{
+						name: 'Place Signatures',
+						value: 'placeSignatures',
+						description: 'Position signatures/rubricas by coordinates',
+						action: 'Place signatures',
+					},
+					{
+						name: 'Validate Signatures',
+						value: 'validateSignatures',
+						description: 'Validate a signed PDF for cryptographic integrity',
+						action: 'Validate signatures',
+					},
+					{
+						name: 'Activity History',
+						value: 'activityHistory',
+						description: 'Get document activity history',
+						action: 'Get document activity history',
+					},
+					{
+						name: 'Delete',
+						value: 'delete',
+						description: 'Delete a document (soft delete)',
+						action: 'Delete a document',
 					},
 					{
 						name: 'Add Extra Document',
@@ -184,6 +214,18 @@ export class ZapSign implements INodeType {
 						value: 'update',
 						description: 'Update a signer',
 						action: 'Update a signer',
+					},
+					{
+						name: 'Detail',
+						value: 'get',
+						description: 'Get signer details by token',
+						action: 'Get signer details',
+					},
+					{
+						name: 'Reset Validation Attempts',
+						value: 'resetAttempts',
+						description: 'Reset a signer\'s validation attempts',
+						action: 'Reset signer validation attempts',
 					},
 				],
 				default: 'add',
@@ -686,7 +728,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['cancel'],
+						operation: ['cancel', 'refuse'],
 					},
 				},
 				description: 'Reason for cancellation to be stored in the document history',
@@ -942,7 +984,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['signer'],
-						operation: ['update', 'remove'],
+						operation: ['update', 'remove', 'get', 'resetAttempts'],
 					},
 				},
 				description: 'Token of the signer to update/remove',
@@ -1886,6 +1928,37 @@ export class ZapSign implements INodeType {
 				},
 				description: 'Sort order for the results',
 			},
+			// Place Signatures fields
+			{
+				displayName: 'Rubrics',
+				name: 'rubrics',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Rubric',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['placeSignatures'],
+					},
+				},
+				description: 'List of signature/rubrica placements',
+				options: [
+					{
+						displayName: 'Rubric',
+						name: 'rubric',
+						values: [
+							{ displayName: 'Type', name: 'type', type: 'options', options: [ { name: 'Signature', value: 'signature' }, { name: 'Visto', value: 'visto' } ], default: 'signature' },
+							{ displayName: 'Page (0-based)', name: 'page', type: 'number', default: 0 },
+							{ displayName: 'Relative Size X', name: 'relative_size_x', type: 'number', default: 19.55 },
+							{ displayName: 'Relative Size Y', name: 'relative_size_y', type: 'number', default: 9.42 },
+							{ displayName: 'Relative Position Bottom', name: 'relative_position_bottom', type: 'number', default: 0 },
+							{ displayName: 'Relative Position Left', name: 'relative_position_left', type: 'number', default: 0 },
+							{ displayName: 'Signer Token', name: 'signer_token', type: 'string', default: '' },
+						],
+					},
+				],
+			},
 			// Background Check fields
 			{
 				displayName: 'External ID',
@@ -2080,6 +2153,24 @@ export class ZapSign implements INodeType {
 							body,
 							headers: {
 								'Content-Type': 'application/json',
+							},
+						};
+
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+
+					} else if (operation === 'refuse') {
+						// Refuse document (alias of cancel)
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const rejectedReason = this.getNodeParameter('rejectedReason', i) as string;
+
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/refuse/`,
+							body: { doc_token: documentToken, rejected_reason: rejectedReason },
+							headers: {
+								'Content-Type': 'application/json',
+								'User-Agent': 'n8n-nodes-zapsign/1.0',
 							},
 						};
 
@@ -2314,6 +2405,24 @@ export class ZapSign implements INodeType {
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
 
+					} else if (operation === 'activityHistory') {
+						// Get document activity history
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const options: IRequestOptions = {
+							method: 'GET',
+							url: `${baseUrl}/api/v1/docs/${documentToken}/activities/`,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'delete') {
+						// Delete document (soft delete)
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const options: IRequestOptions = {
+							method: 'DELETE',
+							url: `${baseUrl}/api/v1/docs/${documentToken}/`,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 					} else if (operation === 'download') {
 						// Download signed document
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
@@ -2339,6 +2448,47 @@ export class ZapSign implements INodeType {
 								data: binaryData,
 							},
 						});
+					} else if (operation === 'placeSignatures') {
+						// Place signatures/rubricas by coordinates
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const rubrics = this.getNodeParameter('rubrics', i, { rubric: [] }) as IDataObject;
+						const entries = (rubrics?.rubric as IDataObject[]) || [];
+						const body: IDataObject = { rubricas: entries.map((r) => ({
+							type: (r.type as string) || 'signature',
+							page: (r.page as number) ?? 0,
+							relative_size_x: (r.relative_size_x as number) ?? 19.55,
+							relative_size_y: (r.relative_size_y as number) ?? 9.42,
+							relative_position_bottom: (r.relative_position_bottom as number) ?? 0,
+							relative_position_left: (r.relative_position_left as number) ?? 0,
+							signer_token: (r.signer_token as string) || '',
+						})).filter((e) => e.signer_token) };
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/docs/${documentToken}/place-signatures/`,
+							body,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'validateSignatures') {
+						// Validate signatures for a PDF file via upload
+						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+						const binaryDataObj = this.helpers.assertBinaryData(i, binaryPropertyName);
+						const buffer = Buffer.from(binaryDataObj.data, 'base64');
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/validate-signatures/`,
+							formData: {
+								file: {
+									value: buffer,
+									options: {
+										filename: binaryDataObj.fileName || 'document.pdf',
+										contentType: 'application/pdf',
+									},
+								},
+							},
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 					} else if (operation === 'addExtraDocument') {
 						// Add extra document/attachment to main document
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
@@ -2617,6 +2767,24 @@ export class ZapSign implements INodeType {
 								method: 'POST',
 								url: `${baseUrl}/api/v1/signers/${encodeURIComponent(signerToken)}/`,
 							body,
+							};
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						},
+						get: async (idx: number) => {
+							const signerToken = this.getNodeParameter('signerToken', idx) as string;
+							const options: IRequestOptions = {
+								method: 'GET',
+								url: `${baseUrl}/api/v1/signers/${encodeURIComponent(signerToken)}/`,
+							};
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						},
+						resetAttempts: async (idx: number) => {
+							const signerToken = this.getNodeParameter('signerToken', idx) as string;
+							const options: IRequestOptions = {
+								method: 'PUT',
+								url: `${baseUrl}/api/v1/reset-auth-attempts/${encodeURIComponent(signerToken)}/`,
 							};
 							const responseData = await requestJson(this, options);
 							pushResult(returnData, responseData);
