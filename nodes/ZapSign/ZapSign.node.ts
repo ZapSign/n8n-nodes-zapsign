@@ -697,7 +697,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['get', 'send', 'cancel', 'download', 'addExtraDocument', 'addExtraDocumentFromTemplate', 'update', 'reorderEnvelope', 'placeSignatures'],
+						operation: ['get', 'send', 'cancel', 'download', 'addExtraDocument', 'addExtraDocumentFromTemplate', 'update', 'reorderEnvelope', 'placeSignatures', 'activityHistory'],
 					},
 				},
 				description: 'Token of the document',
@@ -2404,7 +2404,10 @@ export class ZapSign implements INodeType {
 						pushResult(returnData, responseData);
 					} else if (operation === 'placeSignatures') {
 						// Place signatures/rubricas by coordinates
-						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const documentToken = this.getNodeParameter('documentToken', i, '') as string;
+						if (!documentToken || typeof documentToken !== 'string' || documentToken.trim() === '') {
+							throw new NodeOperationError(this.getNode(), 'Document Token is required for placing signatures.', { itemIndex: i });
+						}
 						const rubrics = this.getNodeParameter('rubrics', i, { rubric: [] }) as IDataObject;
 						const entries = (rubrics?.rubric as IDataObject[]) || [];
 						const body: IDataObject = { rubricas: entries.map((r) => ({
