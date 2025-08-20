@@ -332,41 +332,36 @@ export class ZapSign implements INodeType {
 				},
 				description: 'Name of the document',
 			},
+			// File input type for Create (includes Markdown)
 			{
 				displayName: 'File Input Type',
 				name: 'fileInputType',
 				type: 'options',
 				options: [
-					{
-						name: 'File Upload',
-						value: 'file',
-						description: 'Upload a file from binary data',
-					},
-					{
-						name: 'Base64',
-						value: 'base64',
-						description: 'Provide file content as base64 string',
-					},
-					{
-						name: 'Public Link',
-						value: 'url',
-						description: 'Provide a public URL to the file',
-					},
-					{
-						name: 'Markdown Text',
-						value: 'markdown',
-						description: 'Provide raw Markdown text to generate the document',
-					},
+					{ name: 'File Upload', value: 'file', description: 'Upload a file from binary data' },
+					{ name: 'Base64', value: 'base64', description: 'Provide file content as base64 string' },
+					{ name: 'Public Link', value: 'url', description: 'Provide a public URL to the file' },
+					{ name: 'Markdown Text', value: 'markdown', description: 'Provide raw Markdown text to generate the document' },
 				],
 				default: 'file',
 				required: true,
-				displayOptions: {
-					show: {
-						resource: ['document'],
-						operation: ['create', 'createOneClick'],
-					},
-				},
-				description: 'How to provide the file for document creation. For OneClick, only file/base64/url (PDF or DOCX) are supported. Markdown is not supported for OneClick.',
+				displayOptions: { show: { resource: ['document'], operation: ['create'] } },
+				description: 'How to provide the file for document creation',
+			},
+			// File input type for Create OneClick (PDF/DOCX only)
+			{
+				displayName: 'File Input Type',
+				name: 'fileInputType',
+				type: 'options',
+				options: [
+					{ name: 'File Upload', value: 'file', description: 'Upload a file from binary data' },
+					{ name: 'Base64', value: 'base64', description: 'Provide file content as base64 string' },
+					{ name: 'Public Link', value: 'url', description: 'Provide a public URL to the file' },
+				],
+				default: 'file',
+				required: true,
+				displayOptions: { show: { resource: ['document'], operation: ['createOneClick'] } },
+				description: 'How to provide the file for OneClick document creation (PDF/DOCX via file, base64 or URL).',
 			},
 			{
 				displayName: 'File',
