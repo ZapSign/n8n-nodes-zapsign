@@ -207,6 +207,31 @@ export class ZapSign implements INodeType {
 						value: 'createDocument',
 						action: 'Create document from template',
 					},
+					{
+						name: 'Create Template (DOCX)',
+						value: 'createTemplateDocx',
+						action: 'Create template DOCX',
+					},
+					{
+						name: 'Update Template Form',
+						value: 'updateTemplateForm',
+						action: 'Update template form inputs',
+					},
+					{
+						name: 'Get Template',
+						value: 'get',
+						action: 'Get a template',
+					},
+					{
+						name: 'Update Template',
+						value: 'update',
+						action: 'Update a template',
+					},
+					{
+						name: 'Delete Template',
+						value: 'delete',
+						action: 'Delete a template',
+					},
 				],
 				default: 'getAll',
 			},
@@ -722,8 +747,8 @@ export class ZapSign implements INodeType {
 			},
 			// Extra Document From Template fields
 			{
-				displayName: 'Template ID',
-				name: 'extraDocumentTemplateId',
+				displayName: 'Template Token',
+				name: 'extraDocumentTemplateToken',
 				type: 'string',
 				default: '',
 				required: true,
@@ -733,7 +758,7 @@ export class ZapSign implements INodeType {
 						operation: ['addExtraDocumentFromTemplate'],
 					},
 				},
-				description: 'ID of the template (modelo dinâmico) to use for the extra document',
+				description: 'Token of the template (modelo dinâmico) to use for the extra document',
 			},
 			// Update Document fields
 			{
@@ -1129,8 +1154,8 @@ export class ZapSign implements INodeType {
 			{
 				displayName: 'CPF',
 				name: 'cpf',
-				type: 'string',
-				default: '',
+						type: 'string',
+						default: '',
 				displayOptions: {
 					show: {
 						resource: ['signer'],
@@ -1160,7 +1185,7 @@ export class ZapSign implements INodeType {
 					{ name: 'None', value: '' },
 					{ name: 'Face Match', value: 'facematch' },
 				],
-				default: '',
+						default: '',
 				displayOptions: {
 					show: {
 						resource: ['signer'],
@@ -1197,80 +1222,38 @@ export class ZapSign implements INodeType {
 			},
 			// Template fields
 			{
-				displayName: 'Template ID',
-				name: 'templateId',
-				type: 'string',
+				displayName: 'Template Token',
+				name: 'templateToken',
+						type: 'string',
 				default: '',
 				required: true,
 				displayOptions: {
 					show: {
 						resource: ['template'],
-						operation: ['createDocument'],
+						operation: ['createDocument', 'get', 'update', 'delete', 'updateTemplateForm'],
 					},
 				},
-				description: 'ID of the template (modelo)',
+				description: 'Token of the template (modelo)',
 			},
 			{
 				displayName: 'Document Name',
 				name: 'name',
-				type: 'string',
-				default: '',
+						type: 'string',
+						default: '',
 				displayOptions: {
 					show: {
 						resource: ['template'],
-						operation: ['createDocument'],
+						operation: ['createDocument', 'createTemplateDocx', 'update'],
 					},
-				},
+			},
 				description: 'Name of the document (optional)',
 			},
-			{
-				displayName: 'Signer Information',
-				name: 'signerInfo',
-				type: 'collection',
-				placeholder: 'Add Signer Info',
-				default: {},
-				displayOptions: {
-					show: {
-						resource: ['template'],
-						operation: ['createDocument'],
-					},
-				},
-				description: 'Signer information for the document',
-				options: [
-					{
-						displayName: 'Signer Name',
-						name: 'signerName',
-						type: 'string',
-						default: '',
-						description: 'Name of the signer',
-					},
-					{
-						displayName: 'Signer Email',
-						name: 'signerEmail',
-						type: 'string',
-						default: '',
-						description: 'Email of the signer',
-					},
-					{
-						displayName: 'Phone Country Code',
-						name: 'signerPhoneCountry',
-						type: 'string',
-						default: '55',
-						description: 'Country code for phone number (e.g., 55 for Brazil)',
-					},
-					{
-						displayName: 'Phone Number',
-						name: 'signerPhoneNumber',
-						type: 'string',
-						default: '',
-						description: 'Phone number of the signer',
-					},
-				],
-			},
+			// Removed signer information for template-created documents. Signers should be created via dynamic data.
 			{
 				displayName: 'Template Data',
 				name: 'templateData',
-				type: 'collection',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
 				placeholder: 'Add Template Variable',
 				default: {},
 				displayOptions: {
@@ -1281,6 +1264,10 @@ export class ZapSign implements INodeType {
 				},
 				description: 'Template variables to replace in the document',
 				options: [
+					{
+						displayName: 'Variable',
+						name: 'variable',
+						values: [
 					{
 						displayName: 'Variable Name',
 						name: 'variableName',
@@ -1294,6 +1281,8 @@ export class ZapSign implements INodeType {
 						type: 'string',
 						default: '',
 						description: 'Value to replace the variable with',
+							},
+						],
 					},
 				],
 			},
@@ -1306,7 +1295,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['template'],
-						operation: ['createDocument'],
+						operation: ['createDocument', 'createTemplateDocx', 'update'],
 					},
 				},
 				description: 'Additional fields for template document creation',
@@ -1457,6 +1446,71 @@ export class ZapSign implements INodeType {
 						type: 'string',
 						default: '',
 						description: 'Folder token (overrides folder_path if provided)',
+					},
+				],
+			},
+			// Create Template (DOCX) specific fields
+			{
+				displayName: 'DOCX Source',
+				name: 'docxSource',
+				type: 'options',
+				options: [
+					{ name: 'Public URL', value: 'url' },
+					{ name: 'Base64', value: 'base64' },
+				],
+				default: 'url',
+				required: true,
+				displayOptions: {
+					show: { resource: ['template'], operation: ['createTemplateDocx'] },
+				},
+				description: 'How to provide the .docx content',
+			},
+			{
+				displayName: 'DOCX URL',
+				name: 'docxUrl',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: { resource: ['template'], operation: ['createTemplateDocx'], docxSource: ['url'] },
+				},
+				description: 'Public URL to the DOCX file (max 10MB)',
+			},
+			{
+				displayName: 'DOCX Base64',
+				name: 'docxBase64',
+				type: 'string',
+				typeOptions: { rows: 4 },
+				default: '',
+				required: true,
+				displayOptions: {
+					show: { resource: ['template'], operation: ['createTemplateDocx'], docxSource: ['base64'] },
+				},
+				description: 'Base64 of the DOCX file (do not include data: prefix)',
+			},
+			// Update Template Form fields
+			{
+				displayName: 'Inputs',
+				name: 'templateFormInputs',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Input',
+				default: {},
+				displayOptions: { show: { resource: ['template'], operation: ['updateTemplateForm'] } },
+				description: 'Configure template form inputs (variables)',
+				options: [
+					{
+						displayName: 'Input',
+						name: 'input',
+						values: [
+							{ displayName: 'Variable', name: 'variable', type: 'string', default: '' },
+							{ displayName: 'Label', name: 'label', type: 'string', default: '' },
+							{ displayName: 'Help Text', name: 'help_text', type: 'string', default: '' },
+							{ displayName: 'Input Type', name: 'input_type', type: 'string', default: 'input' },
+							{ displayName: 'Options (comma-separated)', name: 'options', type: 'string', default: '' },
+							{ displayName: 'Required', name: 'required', type: 'boolean', default: false },
+							{ displayName: 'Order', name: 'order', type: 'number', default: 1 },
+						],
 					},
 				],
 			},
@@ -2256,12 +2310,12 @@ export class ZapSign implements INodeType {
 					} else if (operation === 'addExtraDocumentFromTemplate') {
 						// Add extra document from template with variable replacement
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
-						const templateId = this.getNodeParameter('extraDocumentTemplateId', i) as string;
+						const templateToken = this.getNodeParameter('extraDocumentTemplateToken', i) as string;
 						const templateData = this.getNodeParameter('extraDocumentTemplateData', i) as IDataObject;
 
 						// Build request body according to ZapSign API documentation
 						const body: IDataObject = {
-							template_id: templateId,
+							template_id: templateToken,
 						};
 
 						// Add template data (variables) if provided
@@ -2396,9 +2450,9 @@ export class ZapSign implements INodeType {
 							const requireDocAuth = this.getNodeParameter('requireDocAuth', idx) as boolean;
 							const requireFacialRecognition = this.getNodeParameter('requireFacialRecognition', idx) as boolean;
 
-							const body: IDataObject = {
-								email: signerEmail,
-								name: signerName,
+						const body: IDataObject = {
+							email: signerEmail,
+							name: signerName,
 								auth_mode: authMethod,
 								require_document_photo: requireDocAuth,
 								require_selfie_photo: requireFacialRecognition,
@@ -2434,18 +2488,18 @@ export class ZapSign implements INodeType {
 							if (validateCpf !== undefined) body.validate_cpf = validateCpf;
 							if (selfieValidationType) body.selfie_validation_type = selfieValidationType;
 
-							const options: IRequestOptions = {
-								method: 'POST',
+						const options: IRequestOptions = {
+							method: 'POST',
 								url: `${baseUrl}/api/v1/docs/${documentToken}/add-signer/`,
-								body,
-							};
+							body,
+						};
 							const responseData = await requestJson(this, options);
 							pushResult(returnData, responseData);
 						},
 						remove: async (idx: number) => {
 							const signerToken = this.getNodeParameter('signerToken', idx) as string;
-							const options: IRequestOptions = {
-								method: 'DELETE',
+						const options: IRequestOptions = {
+							method: 'DELETE',
 								url: `${baseUrl}/api/v1/signer/${encodeURIComponent(signerToken)}/remove/`,
 							};
 							const responseData = await requestJson(this, options);
@@ -2496,10 +2550,10 @@ export class ZapSign implements INodeType {
 							if (validateCpf !== undefined) body.validate_cpf = validateCpf;
 							if (selfieValidationType) body.selfie_validation_type = selfieValidationType;
 
-							const options: IRequestOptions = {
+						const options: IRequestOptions = {
 								method: 'POST',
 								url: `${baseUrl}/api/v1/signers/${encodeURIComponent(signerToken)}/`,
-								body,
+							body,
 							};
 							const responseData = await requestJson(this, options);
 							pushResult(returnData, responseData);
@@ -2535,11 +2589,11 @@ export class ZapSign implements INodeType {
 
 					} else if (operation === 'createDocument') {
 						// Create document from template
-						const templateId = this.getNodeParameter('templateId', i) as string;
+						const templateToken = this.getNodeParameter('templateToken', i) as string;
 						const name = this.getNodeParameter('name', i) as string;
 
 						const body: IDataObject = {
-							template_id: templateId,
+							template_id: templateToken,
 						};
 
 						// Add optional parameters if provided
@@ -2547,39 +2601,15 @@ export class ZapSign implements INodeType {
 							body.name = name;
 						}
 
-						// Add signer information if provided
-						const signerName = this.getNodeParameter('signerName', i, '') as string;
-						const signerEmail = this.getNodeParameter('signerEmail', i, '') as string;
-						const signerPhoneCountry = this.getNodeParameter('signerPhoneCountry', i, '') as string;
-						const signerPhoneNumber = this.getNodeParameter('signerPhoneNumber', i, '') as string;
+						// Signer information is now provided dynamically via template variables; no static signer fields here
 
-						if (signerName) {
-							body.signer_name = signerName;
-						}
-						if (signerEmail) {
-							body.signer_email = signerEmail;
-						}
-						if (signerPhoneCountry) {
-							body.signer_phone_country = signerPhoneCountry;
-						}
-						if (signerPhoneNumber) {
-							body.signer_phone_number = signerPhoneNumber;
-						}
-
-						// Add template data (variables) if provided
+						// Add template data (variables) if provided (fixedCollection -> array of {variableName, variableValue})
 						const templateData = this.getNodeParameter('templateData', i) as IDataObject;
-						if (templateData && Object.keys(templateData).length > 0) {
-							// Convert template data to the format expected by the API
-							// The API expects an array of objects with 'de' (variable name) and 'para' (value)
-							const dataArray = [];
-							for (const [key, value] of Object.entries(templateData)) {
-								if (key && value) {
-									dataArray.push({
-										de: key,
-										para: value,
-									});
-								}
-							}
+						const variables = (templateData?.variable as IDataObject[]) || [];
+						if (Array.isArray(variables) && variables.length > 0) {
+							const dataArray = variables
+								.map((entry) => ({ de: (entry.variableName as string) || '', para: (entry.variableValue as string) || '' }))
+								.filter((v) => v.de && v.para);
 							if (dataArray.length > 0) {
 								body.data = dataArray;
 							}
@@ -2597,6 +2627,89 @@ export class ZapSign implements INodeType {
 							body,
 						};
 
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'createTemplateDocx') {
+						// Create template DOCX
+						const name = this.getNodeParameter('name', i) as string;
+						const docxSource = this.getNodeParameter('docxSource', i) as string;
+						const templateAdditionalFields = this.getNodeParameter('templateAdditionalFields', i, {}) as IDataObject;
+
+						const body: IDataObject = { name };
+						if (docxSource === 'url') {
+							body.docx_url = this.getNodeParameter('docxUrl', i) as string;
+						} else {
+							body.base64_docx = this.getNodeParameter('docxBase64', i) as string;
+						}
+						if (templateAdditionalFields && Object.keys(templateAdditionalFields).length > 0) {
+							Object.assign(body, templateAdditionalFields);
+						}
+
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/templates/create/`,
+							body,
+						};
+
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'get') {
+						// Get template details
+						const templateToken = this.getNodeParameter('templateToken', i) as string;
+						const options: IRequestOptions = {
+							method: 'GET',
+							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/`,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'update') {
+						// Update template metadata
+						const templateToken = this.getNodeParameter('templateToken', i) as string;
+						const name = this.getNodeParameter('name', i, '') as string;
+						const templateAdditionalFields = this.getNodeParameter('templateAdditionalFields', i, {}) as IDataObject;
+						const body: IDataObject = {};
+						if (name) body.name = name;
+						if (templateAdditionalFields && Object.keys(templateAdditionalFields).length > 0) {
+							Object.assign(body, templateAdditionalFields);
+						}
+						const options: IRequestOptions = {
+							method: 'PUT',
+							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/`,
+							body,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'delete') {
+						// Delete template
+						const templateToken = this.getNodeParameter('templateToken', i) as string;
+						const options: IRequestOptions = {
+							method: 'DELETE',
+							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/`,
+						};
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'updateTemplateForm') {
+						// Update template form (inputs)
+						const templateToken = this.getNodeParameter('templateToken', i) as string;
+						const inputsCollection = this.getNodeParameter('templateFormInputs', i) as IDataObject;
+						const inputs = (inputsCollection?.input as IDataObject[]) || [];
+						const body: IDataObject = {};
+						if (Array.isArray(inputs) && inputs.length > 0) {
+							body.inputs = inputs.map((inp) => ({
+								variable: (inp.variable as string) || '',
+								label: (inp.label as string) || '',
+								help_text: (inp.help_text as string) || '',
+								input_type: (inp.input_type as string) || 'input',
+								options: (inp.options as string) || '',
+								required: Boolean(inp.required),
+								order: (inp.order as number) ?? 1,
+							})).filter((e) => e.variable);
+						}
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/update-form/`,
+							body,
+						};
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
 					}
