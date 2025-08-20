@@ -6,29 +6,44 @@ import type {
 	IRequestOptions,
 	IDataObject,
 } from 'n8n-workflow';
-import { NodeConnectionType } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
+import { requestJson, pushResult, mapSignerEntries, mapOneClickSignerEntries } from './internal';
+import { ZapSignDescriptionBuilder } from './description/ZapSignDescriptionBuilder';
+import 'dotenv/config';
+
+// Helper function to determine MIME type from file extension
+function getMimeTypeFromExtension(extension?: string): string {
+	if (!extension) return 'application/octet-stream';
+	
+	const mimeTypes: { [key: string]: string } = {
+		'pdf': 'application/pdf',
+		'doc': 'application/msword',
+		'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+		'xls': 'application/vnd.ms-excel',
+		'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		'ppt': 'application/vnd.ms-powerpoint',
+		'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+		'txt': 'text/plain',
+		'rtf': 'application/rtf',
+		'jpg': 'image/jpeg',
+		'jpeg': 'image/jpeg',
+		'png': 'image/png',
+		'gif': 'image/gif',
+		'bmp': 'image/bmp',
+		'tiff': 'image/tiff',
+		'html': 'text/html',
+		'htm': 'text/html',
+		'xml': 'application/xml',
+		'json': 'application/json',
+	};
+	
+	return mimeTypes[extension] || 'application/octet-stream';
+}
 
 export class ZapSign implements INodeType {
+
 	description: INodeTypeDescription = {
-		displayName: 'ZapSign',
-		name: 'zapSign',
-		icon: 'file:zapsign.svg',
-		group: ['transform'],
-		version: 1,
-		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Interact with ZapSign API for digital signatures',
-		defaults: {
-			name: 'ZapSign',
-		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
-		credentials: [
-			{
-				name: 'zapSignApi',
-				required: true,
-			},
-		],
+		...new ZapSignDescriptionBuilder().build(),
 		properties: [
 			{
 				displayName: 'Resource',
@@ -74,9 +89,15 @@ export class ZapSign implements INodeType {
 						action: 'Create a document',
 					},
 					{
+						name: 'Create OneClick',
+						value: 'createOneClick',
+						description: 'Create a OneClick document for simple consent',
+						action: 'Create a OneClick document',
+					},
+					{
 						name: 'Get',
 						value: 'get',
-						description: 'Get a document',
+						description: 'Get a document (includes signers; use this to list signers)',
 						action: 'Get a document',
 					},
 					{
@@ -103,6 +124,30 @@ export class ZapSign implements INodeType {
 						description: 'Download a signed document',
 						action: 'Download a document',
 					},
+					{
+						name: 'Add Extra Document',
+						value: 'addExtraDocument',
+						description: 'Add an extra document/attachment to the main document',
+						action: 'Add an extra document',
+					},
+					{
+						name: 'Add Extra Document From Template',
+						value: 'addExtraDocumentFromTemplate',
+						description: 'Add an extra document from a template with variable replacement',
+						action: 'Add an extra document from template',
+					},
+					{
+						name: 'Update Document',
+						value: 'update',
+						description: 'Update document data while in progress',
+						action: 'Update a document',
+					},
+					{
+						name: 'Reorder Documents in Envelope',
+						value: 'reorderEnvelope',
+						description: 'Reorder documents within an envelope',
+						action: 'Reorder documents in envelope',
+					},
 				],
 				default: 'create',
 			},
@@ -123,12 +168,6 @@ export class ZapSign implements INodeType {
 						value: 'add',
 						description: 'Add a signer to a document',
 						action: 'Add a signer',
-					},
-					{
-						name: 'Get Many',
-						value: 'getAll',
-						description: 'Get many signers of a document',
-						action: 'Get many signers',
 					},
 					{
 						name: 'Remove',
@@ -220,6 +259,42 @@ export class ZapSign implements INodeType {
 				description: 'Name of the document',
 			},
 			{
+				displayName: 'File Input Type',
+				name: 'fileInputType',
+				type: 'options',
+				options: [
+					{
+						name: 'File Upload',
+						value: 'file',
+						description: 'Upload a file from binary data',
+					},
+					{
+						name: 'Base64',
+						value: 'base64',
+						description: 'Provide file content as base64 string',
+					},
+					{
+						name: 'Public Link',
+						value: 'url',
+						description: 'Provide a public URL to the file',
+					},
+					{
+						name: 'Markdown Text',
+						value: 'markdown',
+						description: 'Provide raw Markdown text to generate the document',
+					},
+				],
+				default: 'file',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['create', 'createOneClick'],
+					},
+				},
+				description: 'How to provide the file for document creation',
+			},
+			{
 				displayName: 'File',
 				name: 'binaryPropertyName',
 				type: 'string',
@@ -228,38 +303,605 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['create'],
+						operation: ['create', 'createOneClick'],
+						fileInputType: ['file'],
 					},
 				},
 				description: 'Name of the binary property containing the file data',
 			},
 			{
-				displayName: 'Document ID',
-				name: 'documentId',
+				displayName: 'Base64 Content',
+				name: 'base64Content',
+				type: 'string',
+				typeOptions: {
+					rows: 4,
+				},
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['create', 'createOneClick'],
+						fileInputType: ['base64'],
+					},
+				},
+				description: 'File content encoded in base64',
+			},
+			{
+				displayName: 'File Name',
+				name: 'fileName',
+				type: 'string',
+				default: 'document.pdf',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['create', 'createOneClick'],
+						fileInputType: ['base64'],
+					},
+				},
+				description: 'Name of the file (including extension)',
+			},
+			{
+				displayName: 'File MIME Type',
+				name: 'fileMimeType',
+				type: 'string',
+				default: 'application/pdf',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['create', 'createOneClick'],
+						fileInputType: ['base64'],
+					},
+				},
+				description: 'MIME type of the file (e.g., application/pdf, image/jpeg)',
+			},
+			{
+				displayName: 'File URL',
+				name: 'fileUrl',
 				type: 'string',
 				default: '',
 				required: true,
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['get', 'send', 'cancel', 'download'],
+						operation: ['create', 'createOneClick'],
+						fileInputType: ['url'],
 					},
 				},
-				description: 'ID of the document',
+				description: 'Public URL to the file',
 			},
 			{
-				displayName: 'Document ID',
-				name: 'documentId',
+				displayName: 'Markdown Text',
+				name: 'markdownText',
+				type: 'string',
+				typeOptions: {
+					rows: 6,
+				},
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['create', 'createOneClick'],
+						fileInputType: ['markdown'],
+					},
+				},
+				description: 'Raw Markdown content to generate the document (alternative to url/base64/upload)',
+			},
+			{
+				displayName: 'Signers',
+				name: 'signers',
+				type: 'fixedCollection',
+				typeOptions: {
+					multipleValues: true,
+				},
+				placeholder: 'Add Signer',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['create', 'createOneClick'],
+					},
+				},
+				description: 'Signers for the document',
+				options: [
+					{
+						displayName: 'Signer',
+						name: 'signer',
+						values: [
+							{
+								displayName: 'Signer Name',
+								name: 'name',
+								type: 'string',
+								default: '',
+								description: 'Name of the signer',
+							},
+							{
+								displayName: 'Signer Email',
+								name: 'email',
+								type: 'string',
+								default: '',
+								description: 'Email of the signer',
+							},
+							{
+								displayName: 'Phone Country Code',
+								name: 'phone_country',
+								type: 'string',
+								default: '55',
+								description: 'Country code for phone number (e.g., 55 for Brazil)',
+							},
+							{
+								displayName: 'Phone Number',
+								name: 'phone_number',
+								type: 'string',
+								default: '',
+								description: 'Phone number of the signer',
+							},
+							{
+								displayName: 'Lock Name',
+								name: 'lock_name',
+								type: 'boolean',
+								default: false,
+								description: 'Whether to lock the signer name field',
+							},
+							{
+								displayName: 'Lock Email',
+								name: 'lock_email',
+								type: 'boolean',
+								default: false,
+								description: 'Whether to lock the signer email field',
+							},
+							{
+								displayName: 'Lock Phone',
+								name: 'lock_phone',
+								type: 'boolean',
+								default: false,
+								description: 'Whether to lock the signer phone field',
+							},
+							{
+								displayName: 'Auth Mode',
+								name: 'auth_mode',
+								type: 'options',
+								options: [
+									{ name: 'Assinatura na tela', value: 'assinaturaTela' },
+									{ name: 'Token por Email', value: 'tokenEmail' },
+									{ name: 'Assinatura na tela + Token por Email', value: 'assinaturaTela-tokenEmail' },
+									{ name: 'Token por SMS', value: 'tokenSms' },
+									{ name: 'Assinatura na tela + Token por SMS', value: 'assinaturaTela-tokenSms' },
+									{ name: 'Token por WhatsApp', value: 'tokenWhatsapp' },
+									{ name: 'Assinatura na tela + Token por WhatsApp', value: 'assinaturaTela-tokenWhatsapp' },
+									{ name: 'Certificado Digital', value: 'certificadoDigital' },
+									{ name: 'Nenhum', value: '' },
+								],
+								default: '',
+								description: 'Modo de autenticação do signatário conforme a documentação ZapSign',
+							},
+							{
+								displayName: 'Signature Placement',
+								name: 'signature_placement',
+								type: 'string',
+								default: '',
+								description: 'JSON positions for signature placement as per ZapSign docs',
+							},
+							{
+								displayName: 'Rubrica Placement',
+								name: 'rubrica_placement',
+								type: 'string',
+								default: '',
+								description: 'JSON positions for initials (rubrica) placement',
+							},
+							{
+								displayName: 'Require CPF',
+								name: 'require_cpf',
+								type: 'boolean',
+								default: false,
+								description: 'Require CPF input from signer',
+							},
+							{
+								displayName: 'Validate CPF',
+								name: 'validate_cpf',
+								type: 'boolean',
+								default: false,
+								description: 'Validate CPF format and checksum',
+							},
+							{
+								displayName: 'CPF',
+								name: 'cpf',
+								type: 'string',
+								default: '',
+								description: 'CPF number of the signer',
+							},
+							{
+								displayName: 'Send Automatic Email',
+								name: 'send_automatic_email',
+								type: 'boolean',
+								default: true,
+								description: 'Automatically send invitation email to signer',
+							},
+							{
+								displayName: 'Send Automatic WhatsApp',
+								name: 'send_automatic_whatsapp',
+								type: 'boolean',
+								default: false,
+								description: 'Automatically send invitation via WhatsApp',
+							},
+							{
+								displayName: 'Send WhatsApp Signed File',
+								name: 'send_automatic_whatsapp_signed_file',
+								type: 'boolean',
+								default: false,
+								description: 'Send the signed file to signer via WhatsApp after completion',
+							},
+							{
+								displayName: 'Order Group',
+								name: 'order_group',
+								type: 'number',
+								default: 0,
+								description: 'Group index for signature order when ordering is active',
+							},
+							{
+								displayName: 'Custom Message',
+								name: 'custom_message',
+								type: 'string',
+								default: '',
+								description: 'Custom message to show the signer in the invitation',
+							},
+							{
+								displayName: 'Blank Email',
+								name: 'blank_email',
+								type: 'boolean',
+								default: false,
+								description: 'Do not request email from signer (leave blank)',
+							},
+							{
+								displayName: 'Hide Email',
+								name: 'hide_email',
+								type: 'boolean',
+								default: false,
+								description: 'Hide email field from signer UI',
+							},
+							{
+								displayName: 'Blank Phone',
+								name: 'blank_phone',
+								type: 'boolean',
+								default: false,
+								description: 'Do not request phone from signer (leave blank)',
+							},
+							{
+								displayName: 'Require Selfie Photo',
+								name: 'require_selfie_photo',
+								type: 'boolean',
+								default: false,
+								description: 'Require a selfie photo during the signing process',
+							},
+							{
+								displayName: 'Require Document Photo',
+								name: 'require_document_photo',
+								type: 'boolean',
+								default: false,
+								description: 'Require an ID document photo during the signing process',
+							},
+							{
+								displayName: 'Selfie Validation Type',
+								name: 'selfie_validation_type',
+								type: 'options',
+								options: [
+									{ name: 'None', value: '' },
+									{ name: 'Face Match', value: 'facematch' },
+								],
+								default: '',
+								description: 'Type of selfie validation to perform',
+							},
+							{
+								displayName: 'Redirect Link',
+								name: 'redirect_link',
+								type: 'string',
+								default: '',
+								description: 'URL to redirect signer after signature',
+							},
+							{
+								displayName: 'Qualification',
+								name: 'qualification',
+								type: 'string',
+								default: '',
+								description: 'Qualification to appear in the signature report',
+							},
+							{
+								displayName: 'External ID',
+								name: 'external_id',
+								type: 'string',
+								default: '',
+								description: 'Signer ID in your application',
+							},
+						],
+					},
+				],
+			},
+			{
+				displayName: 'Document Token',
+				name: 'documentToken',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['get', 'send', 'cancel', 'download', 'addExtraDocument', 'addExtraDocumentFromTemplate', 'update', 'reorderEnvelope'],
+					},
+				},
+				description: 'Token of the document',
+			},
+			{
+				displayName: 'Rejected Reason',
+				name: 'rejectedReason',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['cancel'],
+					},
+				},
+				description: 'Reason for cancellation to be stored in the document history',
+			},
+			{
+				displayName: 'Extra Document Name',
+				name: 'extraDocumentName',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['addExtraDocument'],
+					},
+				},
+				description: 'Title of the extra document (max 255 characters)',
+			},
+			{
+				displayName: 'Extra Document File Input Type',
+				name: 'extraDocumentFileInputType',
+				type: 'options',
+				options: [
+					{
+						name: 'Public URL',
+						value: 'url',
+						description: 'Provide a public URL to the PDF file',
+					},
+					{
+						name: 'Base64',
+						value: 'base64',
+						description: 'Provide PDF content as base64 string',
+					},
+				],
+				default: 'url',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['addExtraDocument'],
+					},
+				},
+				description: 'How to provide the extra document file (only PDF files up to 10MB)',
+			},
+			{
+				displayName: 'Extra Document URL',
+				name: 'extraDocumentUrl',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['addExtraDocument'],
+						extraDocumentFileInputType: ['url'],
+					},
+				},
+				description: 'Public URL to the PDF file (must be publicly accessible)',
+			},
+			{
+				displayName: 'Extra Document Base64 Content',
+				name: 'extraDocumentBase64',
+				type: 'string',
+				typeOptions: {
+					rows: 4,
+				},
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['addExtraDocument'],
+						extraDocumentFileInputType: ['base64'],
+					},
+				},
+				description: 'PDF file content encoded in base64 (max 10MB)',
+			},
+			// Extra Document From Template fields
+			{
+				displayName: 'Template ID',
+				name: 'extraDocumentTemplateId',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['addExtraDocumentFromTemplate'],
+					},
+				},
+				description: 'ID of the template (modelo dinâmico) to use for the extra document',
+			},
+			// Update Document fields
+			{
+				displayName: 'New Document Name',
+				name: 'newDocumentName',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['update'],
+					},
+				},
+				description: 'New name for the document',
+			},
+			{
+				displayName: 'New Date Limit to Sign',
+				name: 'newDateLimitToSign',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['update'],
+					},
+				},
+				description: 'New date limit for signature (YYYY-MM-DD format)',
+			},
+			{
+				displayName: 'New Folder Path',
+				name: 'newFolderPath',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['update'],
+					},
+				},
+				description: 'New folder path where the document will be organized',
+			},
+			{
+				displayName: 'New Folder Token',
+				name: 'newFolderToken',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['update'],
+					},
+				},
+				description: 'Folder token (overrides folder_path if provided)',
+			},
+			{
+				displayName: 'Extra Documents to Rename',
+				name: 'extraDocsToRename',
+				type: 'collection',
+				placeholder: 'Add Extra Document',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['update'],
+					},
+				},
+				description: 'List of extra documents that can be renamed',
+				options: [
+					{
+						displayName: 'Extra Document Token',
+						name: 'extraDocToken',
+						type: 'string',
+						default: '',
+						description: 'Token of the extra document already sent previously',
+					},
+					{
+						displayName: 'New Extra Document Name',
+						name: 'newExtraDocName',
+						type: 'string',
+						default: '',
+						description: 'New name for this extra document',
+					},
+				],
+			},
+			{
+				displayName: 'Template Variables',
+				name: 'extraDocumentTemplateData',
+				type: 'collection',
+				placeholder: 'Add Template Variable',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['addExtraDocumentFromTemplate'],
+					},
+				},
+				description: 'Template variables to replace in the document',
+				options: [
+					{
+						displayName: 'Variable Name',
+						name: 'variableName',
+						type: 'string',
+						default: '',
+						description: 'Name of the variable in the template (e.g., "NOME COMPLETO")',
+					},
+					{
+						displayName: 'Variable Value',
+						name: 'variableValue',
+						type: 'string',
+						default: '',
+						description: 'Value to replace the variable with',
+					},
+				],
+			},
+			// Reorder Envelope fields
+			{
+				displayName: 'Document Display Order',
+				name: 'documentDisplayOrder',
+				type: 'fixedCollection',
+				typeOptions: {
+					multipleValues: true,
+				},
+				placeholder: 'Add Document Token',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['reorderEnvelope'],
+					},
+				},
+				description: 'List of document tokens in the desired display order',
+				options: [
+					{
+						displayName: 'Document Token',
+						name: 'documentToken',
+						type: 'string',
+						default: '',
+						description: 'Token of the document to include in the envelope order',
+					},
+				],
+			},
+			{
+				displayName: 'Document Token',
+				name: 'signerDocumentToken',
 				type: 'string',
 				default: '',
 				required: true,
 				displayOptions: {
 					show: {
 						resource: ['signer'],
-						operation: ['add', 'getAll', 'remove', 'update'],
+						operation: ['add'],
 					},
 				},
-				description: 'ID of the document',
+				description: 'Token of the document',
+			},
+			{
+				displayName: 'Signer Token',
+				name: 'signerToken',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['update', 'remove'],
+					},
+				},
+				description: 'Token of the signer to update/remove',
 			},
 			// Signer fields
 			{
@@ -271,10 +913,23 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['signer'],
-						operation: ['add', 'remove', 'update'],
+						operation: ['add'],
 					},
 				},
 				description: 'Email of the signer',
+			},
+			{
+				displayName: 'New Signer Email',
+				name: 'newSignerEmail',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['update'],
+					},
+				},
+				description: 'New email for the signer (optional)',
 			},
 			{
 				displayName: 'Signer Name',
@@ -294,20 +949,17 @@ export class ZapSign implements INodeType {
 				name: 'authMethod',
 				type: 'options',
 				options: [
-					{
-						name: 'Email',
-						value: 'email',
-					},
-					{
-						name: 'SMS',
-						value: 'sms',
-					},
-					{
-						name: 'WhatsApp',
-						value: 'whatsapp',
-					},
+					{ name: 'Assinatura na tela', value: 'assinaturaTela' },
+					{ name: 'Token por Email', value: 'tokenEmail' },
+					{ name: 'Assinatura na tela + Token por Email', value: 'assinaturaTela-tokenEmail' },
+					{ name: 'Token por SMS', value: 'tokenSms' },
+					{ name: 'Assinatura na tela + Token por SMS', value: 'assinaturaTela-tokenSms' },
+					{ name: 'Token por WhatsApp', value: 'tokenWhatsapp' },
+					{ name: 'Assinatura na tela + Token por WhatsApp', value: 'assinaturaTela-tokenWhatsapp' },
+					{ name: 'Certificado Digital', value: 'certificadoDigital' },
+					{ name: 'Nenhum', value: '' },
 				],
-				default: 'email',
+				default: 'assinaturaTela',
 				displayOptions: {
 					show: {
 						resource: ['signer'],
@@ -315,6 +967,33 @@ export class ZapSign implements INodeType {
 					},
 				},
 				description: 'Authentication method for the signer',
+			},
+			{
+				displayName: 'Redirect Link',
+				name: 'redirectLink',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'URL to redirect signer after signature',
+			},
+			{
+				displayName: 'Phone Country Code',
+				name: 'phoneCountry',
+				type: 'string',
+				default: '55',
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+						authMethod: ['tokenSms', 'assinaturaTela-tokenSms', 'tokenWhatsapp', 'assinaturaTela-tokenWhatsapp'],
+					},
+				},
+				description: 'Country code for phone number (e.g., 55 for Brazil)',
 			},
 			{
 				displayName: 'Phone Number',
@@ -325,10 +1004,170 @@ export class ZapSign implements INodeType {
 					show: {
 						resource: ['signer'],
 						operation: ['add', 'update'],
-						authMethod: ['sms', 'whatsapp'],
+						authMethod: ['tokenSms', 'assinaturaTela-tokenSms', 'tokenWhatsapp', 'assinaturaTela-tokenWhatsapp'],
 					},
 				},
 				description: 'Phone number for SMS or WhatsApp authentication',
+			},
+			{
+				displayName: 'Lock Name',
+				name: 'lockName',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Prevent the signer from changing their name',
+			},
+			{
+				displayName: 'Lock Email',
+				name: 'lockEmail',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Prevent the signer from changing their email',
+			},
+			{
+				displayName: 'Lock Phone',
+				name: 'lockPhone',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Prevent the signer from changing their phone number',
+			},
+			{
+				displayName: 'Qualification',
+				name: 'qualification',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Qualification to appear in the signature report (e.g., testemunha)',
+			},
+			{
+				displayName: 'External ID',
+				name: 'externalId',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Signer ID in your application',
+			},
+			{
+				displayName: 'Send Automatic Email',
+				name: 'sendAutomaticEmail',
+				type: 'boolean',
+				default: true,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Send invitation to signer via email automatically',
+			},
+			{
+				displayName: 'Send Automatic WhatsApp',
+				name: 'sendAutomaticWhatsapp',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Send invitation to signer via WhatsApp automatically',
+			},
+			{
+				displayName: 'Send WhatsApp Signed File',
+				name: 'sendAutomaticWhatsappSignedFile',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Send the signed file to the signer via WhatsApp after completion',
+			},
+			{
+				displayName: 'Require CPF',
+				name: 'requireCpf',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Require CPF input from signer',
+			},
+			{
+				displayName: 'CPF',
+				name: 'cpf',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'CPF number of the signer',
+			},
+			{
+				displayName: 'Validate CPF',
+				name: 'validateCpf',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Validate CPF data against Receita Federal',
+			},
+			{
+				displayName: 'Selfie Validation Type',
+				name: 'selfieValidationType',
+				type: 'options',
+				options: [
+					{ name: 'None', value: '' },
+					{ name: 'Face Match', value: 'facematch' },
+				],
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['signer'],
+						operation: ['add', 'update'],
+					},
+				},
+				description: 'Type of selfie validation to perform',
 			},
 			{
 				displayName: 'Require Document Authentication',
@@ -369,7 +1208,257 @@ export class ZapSign implements INodeType {
 						operation: ['createDocument'],
 					},
 				},
-				description: 'ID of the template',
+				description: 'ID of the template (modelo)',
+			},
+			{
+				displayName: 'Document Name',
+				name: 'name',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Name of the document (optional)',
+			},
+			{
+				displayName: 'Signer Information',
+				name: 'signerInfo',
+				type: 'collection',
+				placeholder: 'Add Signer Info',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Signer information for the document',
+				options: [
+					{
+						displayName: 'Signer Name',
+						name: 'signerName',
+						type: 'string',
+						default: '',
+						description: 'Name of the signer',
+					},
+					{
+						displayName: 'Signer Email',
+						name: 'signerEmail',
+						type: 'string',
+						default: '',
+						description: 'Email of the signer',
+					},
+					{
+						displayName: 'Phone Country Code',
+						name: 'signerPhoneCountry',
+						type: 'string',
+						default: '55',
+						description: 'Country code for phone number (e.g., 55 for Brazil)',
+					},
+					{
+						displayName: 'Phone Number',
+						name: 'signerPhoneNumber',
+						type: 'string',
+						default: '',
+						description: 'Phone number of the signer',
+					},
+				],
+			},
+			{
+				displayName: 'Template Data',
+				name: 'templateData',
+				type: 'collection',
+				placeholder: 'Add Template Variable',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Template variables to replace in the document',
+				options: [
+					{
+						displayName: 'Variable Name',
+						name: 'variableName',
+						type: 'string',
+						default: '',
+						description: 'Name of the variable in the template (e.g., "NOME COMPLETO")',
+					},
+					{
+						displayName: 'Variable Value',
+						name: 'variableValue',
+						type: 'string',
+						default: '',
+						description: 'Value to replace the variable with',
+					},
+				],
+			},
+			{
+				displayName: 'Template Additional Fields',
+				name: 'templateAdditionalFields',
+				type: 'collection',
+				placeholder: 'Add Field',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Additional fields for template document creation',
+				options: [
+					{
+						displayName: 'Language',
+						name: 'lang',
+						type: 'options',
+						options: [
+							{
+								name: 'Portuguese (Brazil)',
+								value: 'pt-br',
+							},
+							{
+								name: 'English',
+								value: 'en',
+							},
+							{
+								name: 'Spanish',
+								value: 'es',
+							},
+						],
+						default: 'pt-br',
+						description: 'Language for the document interface',
+					},
+					{
+						displayName: 'Disable Signer Emails',
+						name: 'disable_signer_emails',
+						type: 'boolean',
+						default: false,
+						description: 'Disable automatic emails sent to signers (default: false)',
+					},
+					{
+						displayName: 'Brand Logo URL',
+						name: 'brand_logo',
+						type: 'string',
+						default: '',
+						description: 'Public URL of the brand logo image',
+					},
+					{
+						displayName: 'Brand Primary Color',
+						name: 'brand_primary_color',
+						type: 'string',
+						default: '',
+						description: 'Primary brand color in RGB or hex (e.g., "#0011ee")',
+					},
+					{
+						displayName: 'Brand Name',
+						name: 'brand_name',
+						type: 'string',
+						default: '',
+						description: 'Brand name to appear in emails (max 100 characters)',
+					},
+					{
+						displayName: 'External ID',
+						name: 'external_id',
+						type: 'string',
+						default: '',
+						description: 'Document ID in your application',
+					},
+					{
+						displayName: 'Folder Path',
+						name: 'folder_path',
+						type: 'string',
+						default: '/',
+						description: 'Folder path in ZapSign; missing folders will be created automatically',
+					},
+					{
+						displayName: 'Date Limit to Sign',
+						name: 'date_limit_to_sign',
+						type: 'string',
+						default: '',
+						description: 'Signature deadline in YYYY-MM-DD format',
+					},
+					{
+						displayName: 'Signature Order Active',
+						name: 'signature_order_active',
+						type: 'boolean',
+						default: false,
+						description: 'Enable signature ordering between signers',
+					},
+					{
+						displayName: 'Reminder Every N Days',
+						name: 'reminder_every_n_days',
+						type: 'number',
+						default: 0,
+						description: 'Send automatic reminders every N days (0 disables reminders)',
+					},
+					{
+						displayName: 'Allow Refuse Signature',
+						name: 'allow_refuse_signature',
+						type: 'boolean',
+						default: true,
+						description: 'Allow signer to refuse the document',
+					},
+					{
+						displayName: 'Created By',
+						name: 'created_by',
+						type: 'string',
+						default: '',
+						description: 'Email of the user who will be set as document creator',
+					},
+					{
+						displayName: 'Signer Has Incomplete Fields',
+						name: 'signer_has_incomplete_fields',
+						type: 'boolean',
+						default: false,
+						description: 'Whether the signer has incomplete fields to fill',
+					},
+					{
+						displayName: 'Allow Signer Refusal',
+						name: 'allow_signer_refusal',
+						type: 'boolean',
+						default: false,
+						description: 'Whether signers can refuse to sign the document',
+					},
+					{
+						displayName: 'Disable Signers Get Original File',
+						name: 'disable_signers_get_original_file',
+						type: 'boolean',
+						default: false,
+						description: 'Whether signers can download the original document',
+					},
+					{
+						displayName: 'Send Automatic WhatsApp',
+						name: 'send_automatic_whatsapp',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to automatically send WhatsApp message to signer (costs R$ 0.50)',
+					},
+					{
+						displayName: 'Send Automatic WhatsApp Signed File',
+						name: 'send_automatic_whatsapp_signed_file',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to automatically send signed file via WhatsApp (costs R$ 0.50)',
+					},
+					{
+						displayName: 'Signature Order Active',
+						name: 'signature_order_active',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to request signatures sequentially',
+					},
+					{
+						displayName: 'Folder Token',
+						name: 'folder_token',
+						type: 'string',
+						default: '',
+						description: 'Folder token (overrides folder_path if provided)',
+					},
+				],
 			},
 			// Webhook fields
 			{
@@ -449,39 +1538,265 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['create'],
+						operation: ['create', 'createOneClick'],
 					},
 				},
 				options: [
 					{
-						displayName: 'Brand ID',
-						name: 'brandId',
-						type: 'string',
-						default: '',
-						description: 'Brand ID for custom branding',
-					},
-					{
-						displayName: 'Locale',
-						name: 'locale',
+						displayName: 'Language',
+						name: 'lang',
 						type: 'options',
 						options: [
 							{
-								name: 'English',
-								value: 'en',
+								name: 'Portuguese (Brazil)',
+								value: 'pt-br',
 							},
 							{
-								name: 'Portuguese (Brazil)',
-								value: 'pt-BR',
+								name: 'English',
+								value: 'en',
 							},
 							{
 								name: 'Spanish',
 								value: 'es',
 							},
 						],
-						default: 'en',
+						default: 'pt-br',
 						description: 'Language for the document interface',
 					},
+					{
+						displayName: 'Disable Signer Emails',
+						name: 'disable_signer_emails',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to disable emails sent to signers',
+					},
+					{
+						displayName: 'Brand Logo URL',
+						name: 'brand_logo',
+						type: 'string',
+						default: '',
+						description: 'URL of the brand logo image (must be publicly accessible)',
+					},
+					{
+						displayName: 'Brand Primary Color',
+						name: 'brand_primary_color',
+						type: 'string',
+						default: '',
+						description: 'Primary color for branding (RGB or hex format, e.g., "#0011ee")',
+					},
+					{
+						displayName: 'Brand Name',
+						name: 'brand_name',
+						type: 'string',
+						default: '',
+						description: 'Brand name to appear in emails (max 100 characters)',
+					},
+					{
+						displayName: 'External ID',
+						name: 'external_id',
+						type: 'string',
+						default: '',
+						description: 'ID of the document in your application',
+					},
+					{
+						displayName: 'Folder Path',
+						name: 'folder_path',
+						type: 'string',
+						default: '',
+						description: 'Path to folder in ZapSign (folders will be created automatically)',
+					},
+					// (moved OneClick Settings to top-level parameter to avoid nested displayOptions in collections)
 				],
+			},
+			// OneClick settings (top-level to avoid nested displayOptions in collections)
+			{
+				displayName: 'OneClick Settings',
+				name: 'oneClickSettings',
+				type: 'collection',
+				placeholder: 'Add OneClick Setting',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['createOneClick'],
+					},
+				},
+				description: 'OneClick specific settings for simplified consent',
+				options: [
+					{
+						displayName: 'Require Signature Drawing',
+						name: 'require_signature_drawing',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to require the signer to draw their signature (adds extra security layer)',
+					},
+					{
+						displayName: 'Custom Consent Text',
+						name: 'custom_consent_text',
+						type: 'string',
+						default: '',
+						description: 'Custom text to display for consent (overrides default)',
+					},
+					{
+						displayName: 'Redirect After Sign',
+						name: 'redirect_after_sign',
+						type: 'string',
+						default: '',
+						description: 'URL to redirect to after the user consents (optional)',
+					},
+				],
+			},
+
+			// List Documents parameters
+			{
+				displayName: 'Page',
+				name: 'page',
+				type: 'number',
+				typeOptions: {
+					minValue: 1,
+				},
+				default: 1,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['getAll'],
+					},
+				},
+				description: 'Page number (starts from 1). Each page contains 25 documents by default.',
+			},
+			{
+				displayName: 'Folder Path',
+				name: 'folderPath',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['getAll'],
+					},
+				},
+				description: 'Filter documents by folder path (e.g., "/api/pasta2/" or "/" for root)',
+			},
+			{
+				displayName: 'Deleted Status',
+				name: 'deleted',
+				type: 'options',
+				options: [
+					{
+						name: 'All Documents',
+						value: '',
+						description: 'Include both deleted and non-deleted documents',
+					},
+					{
+						name: 'Not Deleted',
+						value: 'false',
+						description: 'Only non-deleted documents',
+					},
+					{
+						name: 'Deleted Only',
+						value: 'true',
+						description: 'Only deleted documents',
+					},
+				],
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['getAll'],
+					},
+				},
+				description: 'Filter by deletion status',
+			},
+			{
+				displayName: 'Document Status',
+				name: 'status',
+				type: 'options',
+				options: [
+					{
+						name: 'All Statuses',
+						value: '',
+						description: 'Include documents with any status',
+					},
+					{
+						name: 'Pending',
+						value: 'pending',
+						description: 'Documents in progress (em andamento)',
+					},
+					{
+						name: 'Signed',
+						value: 'signed',
+						description: 'Completed documents (assinado)',
+					},
+					{
+						name: 'Refused',
+						value: 'refused',
+						description: 'Documents that were refused (recusado)',
+					},
+				],
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['getAll'],
+					},
+				},
+				description: 'Filter by document status',
+			},
+			{
+				displayName: 'Created From Date',
+				name: 'createdFrom',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['getAll'],
+					},
+				},
+				description: 'Filter documents created from this date (YYYY-MM-DD format)',
+			},
+			{
+				displayName: 'Created To Date',
+				name: 'createdTo',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['getAll'],
+					},
+				},
+				description: 'Filter documents created up to this date (YYYY-MM-DD format)',
+			},
+			{
+				displayName: 'Sort Order',
+				name: 'sortOrder',
+				type: 'options',
+				options: [
+					{
+						name: 'Default (Newest First)',
+						value: '',
+						description: 'API default sorting (newest documents first)',
+					},
+					{
+						name: 'Ascending (Oldest First)',
+						value: 'asc',
+						description: 'Sort by creation date ascending (oldest first)',
+					},
+					{
+						name: 'Descending (Newest First)',
+						value: 'desc',
+						description: 'Sort by creation date descending (newest first)',
+					},
+				],
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['getAll'],
+					},
+				},
+				description: 'Sort order for the results',
 			},
 			{
 				displayName: 'Limit',
@@ -493,7 +1808,7 @@ export class ZapSign implements INodeType {
 				default: 50,
 				displayOptions: {
 					show: {
-						resource: ['document', 'template', 'webhook'],
+						resource: ['template', 'webhook'],
 						operation: ['getAll'],
 					},
 				},
@@ -508,11 +1823,12 @@ export class ZapSign implements INodeType {
 		const resource = this.getNodeParameter('resource', 0);
 		const operation = this.getNodeParameter('operation', 0);
 
-		// Resolve base URL from credentials once
+		// Resolve base URL from credentials once, allowing env override
 		const credentials = await this.getCredentials('zapSignApi');
-		const baseUrl = (credentials as IDataObject).environment === 'sandbox'
-			? 'https://sandbox.api.zapsign.com.br'
-			: 'https://api.zapsign.com.br';
+		const sandboxApiBaseUrl = process.env.ZAPSIGN_API_BASE_URL_SANDBOX || 'https://sandbox.api.zapsign.com.br';
+		const prodApiBaseUrl = process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br';
+		const baseUrl = (credentials as IDataObject).environment === 'sandbox' ? sandboxApiBaseUrl : prodApiBaseUrl;
+
 
 		for (let i = 0; i < items.length; i++) {
 			try {
@@ -520,246 +1836,649 @@ export class ZapSign implements INodeType {
 					if (operation === 'create') {
 						// Create document
 						const name = this.getNodeParameter('name', i) as string;
-						const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+						const fileInputType = this.getNodeParameter('fileInputType', i) as string;
+						let binaryData: Buffer = Buffer.from('');
+						let fileName: string;
+						let mimeType: string;
+
+						if (fileInputType === 'file') {
+							const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+							const binaryDataObj = this.helpers.assertBinaryData(i, binaryPropertyName);
+							binaryData = Buffer.from(binaryDataObj.data, 'base64');
+							fileName = binaryDataObj.fileName || 'document.pdf';
+							mimeType = binaryDataObj.mimeType || 'application/pdf';
+						} else if (fileInputType === 'base64') {
+							const base64Content = this.getNodeParameter('base64Content', i) as string;
+							fileName = this.getNodeParameter('fileName', i) as string;
+							mimeType = this.getNodeParameter('fileMimeType', i) as string;
+							binaryData = Buffer.from(base64Content, 'base64');
+						} else if (fileInputType === 'url') {
+							const fileUrl = this.getNodeParameter('fileUrl', i) as string;
+							try {
+								const response = await this.helpers.request({
+									method: 'GET',
+									url: fileUrl,
+									encoding: null, // Get binary data
+								});
+								binaryData = response as Buffer;
+								fileName = fileUrl.split('/').pop() || 'document.pdf'; // Attempt to get filename from URL
+								// Determine MIME type from file extension
+								const fileExtension = fileName.split('.').pop()?.toLowerCase();
+								mimeType = getMimeTypeFromExtension(fileExtension);
+							} catch (error) {
+								throw new NodeOperationError(this.getNode(), `Failed to download file from URL: ${error.message}`, {
+									itemIndex: i,
+								});
+							}
+						} else if (fileInputType === 'markdown') {
+							// Markdown content does not require binary handling
+							fileName = 'markdown.md';
+							mimeType = 'text/markdown';
+						} else {
+							throw new NodeOperationError(this.getNode(), 'Invalid file input type selected.', {
+								itemIndex: i,
+							});
+						}
+
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 
-						const binaryData = this.helpers.assertBinaryData(i, binaryPropertyName);
+						// According to ZapSign API docs, we need to send JSON with specific parameters
+						const body: IDataObject = {
+							name,
+							...additionalFields,
+						};
 
-						// For file upload, we need to use form-data
+						// Add file content based on input type
+						if (fileInputType === 'markdown') {
+							body.markdown_text = this.getNodeParameter('markdownText', i) as string;
+						} else if (fileInputType === 'base64') {
+							// For base64, use the appropriate parameter based on file type
+							if (mimeType === 'application/pdf') {
+								body.base64_pdf = this.getNodeParameter('base64Content', i) as string;
+							} else if (mimeType.includes('word') || mimeType.includes('document')) {
+								body.base64_docx = this.getNodeParameter('base64Content', i) as string;
+							} else {
+								// For other file types, use base64_pdf as fallback
+								body.base64_pdf = this.getNodeParameter('base64Content', i) as string;
+							}
+						} else if (fileInputType === 'url') {
+							// For URL, use the appropriate parameter based on file type
+							if (mimeType === 'application/pdf') {
+								body.url_pdf = this.getNodeParameter('fileUrl', i) as string;
+							} else if (mimeType.includes('word') || mimeType.includes('document')) {
+								body.url_docx = this.getNodeParameter('fileUrl', i) as string;
+							} else {
+								// For other file types, use url_pdf as fallback
+								body.url_pdf = this.getNodeParameter('fileUrl', i) as string;
+							}
+						} else if (fileInputType === 'file') {
+							// For file upload, convert to base64 and use appropriate parameter
+							const base64Content = binaryData.toString('base64');
+							if (mimeType === 'application/pdf') {
+								body.base64_pdf = base64Content;
+							} else if (mimeType.includes('word') || mimeType.includes('document')) {
+								body.base64_docx = base64Content;
+							} else {
+								// For other file types, use base64_pdf as fallback
+								body.base64_pdf = base64Content;
+							}
+						}
+
+						// Add signers array (required by API)
+						const signersCollection = this.getNodeParameter('signers', i) as IDataObject;
+						const signerEntries = (signersCollection?.signer as IDataObject[]) || [];
+						if (!Array.isArray(signerEntries) || signerEntries.length === 0) {
+							throw new NodeOperationError(this.getNode(), 'At least one signer is required. Add one or more signers.', {
+								itemIndex: i,
+							});
+						}
+						body.signers = mapSignerEntries(signerEntries);
+
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/docs`,
-							formData: {
-								name,
-								file: {
-									value: Buffer.from(binaryData.data, 'base64'),
-									options: {
-										filename: binaryData.fileName || 'document.pdf',
-										contentType: binaryData.mimeType || 'application/pdf',
-									},
-								},
-								...additionalFields,
+							url: `${baseUrl}/api/v1/docs/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
 							},
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+
+					} else if (operation === 'createOneClick') {
+						// Create OneClick document (simplified consent)
+						const name = this.getNodeParameter('name', i) as string;
+						const fileInputType = this.getNodeParameter('fileInputType', i) as string;
+						let binaryData: Buffer = Buffer.from('');
+						let fileName: string;
+						let mimeType: string;
+
+						if (fileInputType === 'file') {
+							const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+							const binaryDataObj = this.helpers.assertBinaryData(i, binaryPropertyName);
+							binaryData = Buffer.from(binaryDataObj.data, 'base64');
+							fileName = binaryDataObj.fileName || 'document.pdf';
+							mimeType = binaryDataObj.mimeType || 'application/pdf';
+						} else if (fileInputType === 'base64') {
+							const base64Content = this.getNodeParameter('base64Content', i) as string;
+							fileName = this.getNodeParameter('fileName', i) as string;
+							mimeType = this.getNodeParameter('fileMimeType', i) as string;
+							binaryData = Buffer.from(base64Content, 'base64');
+						} else if (fileInputType === 'url') {
+							const fileUrl = this.getNodeParameter('fileUrl', i) as string;
+							try {
+								const response = await this.helpers.request({
+									method: 'GET',
+									url: fileUrl,
+									encoding: null, // Get binary data
+								});
+								binaryData = response as Buffer;
+								fileName = fileUrl.split('/').pop() || 'document.pdf';
+								const fileExtension = fileName.split('.').pop()?.toLowerCase();
+								mimeType = getMimeTypeFromExtension(fileExtension);
+							} catch (error) {
+								throw new NodeOperationError(this.getNode(), `Failed to download file from URL: ${error.message}`, {
+									itemIndex: i,
+								});
+							}
+						} else {
+							throw new NodeOperationError(this.getNode(), 'Invalid file input type selected.', {
+								itemIndex: i,
+							});
+						}
+
+						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						const oneClickSettings = this.getNodeParameter('oneClickSettings', i) as IDataObject;
+
+						// Build OneClick document body
+						const body: IDataObject = {
+							name,
+							...additionalFields,
+						};
+
+						// Add OneClick specific parameters
+						if (oneClickSettings.require_signature_drawing) {
+							body.require_signature_drawing = oneClickSettings.require_signature_drawing;
+						}
+						if (oneClickSettings.custom_consent_text) {
+							body.custom_consent_text = oneClickSettings.custom_consent_text;
+						}
+						if (oneClickSettings.redirect_after_sign) {
+							body.redirect_after_sign = oneClickSettings.redirect_after_sign;
+						}
+
+						// Add file content based on input type
+						if ((fileInputType as string) === 'markdown') {
+							body.markdown_text = this.getNodeParameter('markdownText', i) as string;
+						} else if (fileInputType === 'base64') {
+							// For base64, use the appropriate parameter based on file type
+							if (mimeType === 'application/pdf') {
+								body.base64_pdf = this.getNodeParameter('base64Content', i) as string;
+							} else if (mimeType.includes('word') || mimeType.includes('document')) {
+								body.base64_docx = this.getNodeParameter('base64Content', i) as string;
+							} else {
+								// For other file types, use base64_pdf as fallback
+								body.base64_pdf = this.getNodeParameter('base64Content', i) as string;
+							}
+						} else if (fileInputType === 'url') {
+							// For URL, use the appropriate parameter based on file type
+							if (mimeType === 'application/pdf') {
+								body.url_pdf = this.getNodeParameter('fileUrl', i) as string;
+							} else if (mimeType.includes('word') || mimeType.includes('document')) {
+								body.url_docx = this.getNodeParameter('fileUrl', i) as string;
+							} else {
+								// For other file types, use url_pdf as fallback
+								body.url_pdf = this.getNodeParameter('fileUrl', i) as string;
+							}
+						} else if (fileInputType === 'file') {
+							const base64Content = binaryData.toString('base64');
+							if (mimeType === 'application/pdf') {
+								body.base64_pdf = base64Content;
+							} else if (mimeType.includes('word') || mimeType.includes('document')) {
+								body.base64_docx = base64Content;
+							} else {
+								body.base64_pdf = base64Content;
+							}
+						}
+
+						// For OneClick, accept multiple signers as well
+						const signersCollectionOC = this.getNodeParameter('signers', i) as IDataObject;
+						const signerEntriesOC = (signersCollectionOC?.signer as IDataObject[]) || [];
+						if (!Array.isArray(signerEntriesOC) || signerEntriesOC.length === 0) {
+							throw new NodeOperationError(this.getNode(), 'At least one signer is required. Add one or more signers.', {
+								itemIndex: i,
+							});
+						}
+						body.signers = mapOneClickSignerEntries(signerEntriesOC);
+
+						// Add OneClick flag to indicate this is a OneClick document
+						body.oneclick = true;
+
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/docs/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
+						};
+
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 
 					} else if (operation === 'get') {
-						// Get document
-						const documentId = this.getNodeParameter('documentId', i) as string;
+						// Get document details according to ZapSign API documentation
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
 
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/api/v1/docs/${documentId}`,
+							url: `${baseUrl}/api/v1/docs/${documentToken}/`,
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 
 					} else if (operation === 'getAll') {
-						// Get all documents
-						const limit = this.getNodeParameter('limit', i) as number;
+						// List documents according to ZapSign API documentation
+						const page = this.getNodeParameter('page', i) as number;
+						const folderPath = this.getNodeParameter('folderPath', i) as string;
+						const deleted = this.getNodeParameter('deleted', i) as string;
+						const status = this.getNodeParameter('status', i) as string;
+						const createdFrom = this.getNodeParameter('createdFrom', i) as string;
+						const createdTo = this.getNodeParameter('createdTo', i) as string;
+						const sortOrder = this.getNodeParameter('sortOrder', i) as string;
+
+						// Build query parameters according to ZapSign API documentation
+						const qs: IDataObject = {
+							page,
+						};
+
+						// Add optional query parameters if provided
+						if (folderPath) {
+							qs.folder_path = folderPath;
+						}
+						if (deleted) {
+							qs.deleted = deleted;
+						}
+						if (status) {
+							qs.status = status;
+						}
+						if (createdFrom) {
+							qs.created_from = createdFrom;
+						}
+						if (createdTo) {
+							qs.created_to = createdTo;
+						}
+						if (sortOrder) {
+							qs.sort_order = sortOrder;
+						}
 
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/api/v1/docs`,
-							qs: {
-								limit,
-							},
+							url: `${baseUrl}/api/v1/docs/`,
+							qs,
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						
-						// Handle pagination if API returns array or paginated response
-						if (Array.isArray(responseData)) {
-							returnData.push(...responseData);
+						const responseData = await requestJson(this, options);
+						// The API returns a paginated response with count, next, previous, and results
+						// Handle both the paginated response structure and direct array responses
+						if (responseData && typeof responseData === 'object' && 'results' in (responseData as IDataObject)) {
+							// Paginated response
+							pushResult(returnData, responseData as IDataObject);
+						} else if (Array.isArray(responseData)) {
+							// Direct array response
+							pushResult(returnData, responseData as IDataObject[]);
 						} else {
-							returnData.push(responseData);
+							// Single object response
+							pushResult(returnData, responseData as IDataObject);
 						}
 
 					} else if (operation === 'send') {
 						// Send document for signature
-						const documentId = this.getNodeParameter('documentId', i) as string;
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/docs/${documentId}/send`,
+							url: `${baseUrl}/api/v1/docs/${documentToken}/send`,
 							body: {},
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 
 					} else if (operation === 'cancel') {
 						// Cancel document
-						const documentId = this.getNodeParameter('documentId', i) as string;
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const rejectedReason = this.getNodeParameter('rejectedReason', i) as string;
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/docs/${documentId}/cancel`,
-							body: {},
+							url: `${baseUrl}/api/v1/refuse/`,
+							body: { doc_token: documentToken, rejected_reason: rejectedReason },
+							headers: {
+								'Content-Type': 'application/json',
+								'User-Agent': 'n8n-nodes-zapsign/1.0',
+							},
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 
 					} else if (operation === 'download') {
 						// Download signed document
-						const documentId = this.getNodeParameter('documentId', i) as string;
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
 
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/api/v1/docs/${documentId}/download`,
+							url: `${baseUrl}/api/v1/docs/${documentToken}/download`,
 							encoding: null, // Get binary data
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
+						const responseData = await this.helpers.request(options);
 
 						// Convert to binary data
 						const binaryData = await this.helpers.prepareBinaryData(
 							responseData as Buffer,
-							`document-${documentId}.pdf`,
+							`document-${documentToken}.pdf`,
 							'application/pdf',
 						);
 
 						returnData.push({
-							json: { documentId, downloaded: true },
+							json: { documentToken, downloaded: true },
 							binary: {
 								data: binaryData,
 							},
 						});
-					}
+					} else if (operation === 'addExtraDocument') {
+						// Add extra document/attachment to main document
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const extraDocumentName = this.getNodeParameter('extraDocumentName', i) as string;
+						const extraDocumentFileInputType = this.getNodeParameter('extraDocumentFileInputType', i) as string;
 
-				} else if (resource === 'signer') {
-					const documentId = this.getNodeParameter('documentId', i) as string;
-
-					if (operation === 'add') {
-						// Add signer
-						const signerEmail = this.getNodeParameter('signerEmail', i) as string;
-						const signerName = this.getNodeParameter('signerName', i) as string;
-						const authMethod = this.getNodeParameter('authMethod', i) as string;
-						const phoneNumber = this.getNodeParameter('phoneNumber', i, '') as string;
-						const requireDocAuth = this.getNodeParameter('requireDocAuth', i) as boolean;
-						const requireFacialRecognition = this.getNodeParameter('requireFacialRecognition', i) as boolean;
-
+						// Build request body according to ZapSign API documentation
 						const body: IDataObject = {
-							email: signerEmail,
-							name: signerName,
-							auth_method: authMethod,
-							require_doc_auth: requireDocAuth,
-							require_facial_recognition: requireFacialRecognition,
+							name: extraDocumentName,
 						};
 
-						if (phoneNumber) {
-							body.phone_number = phoneNumber;
+						// Add file content based on input type
+						if (extraDocumentFileInputType === 'url') {
+							const extraDocumentUrl = this.getNodeParameter('extraDocumentUrl', i) as string;
+							body.url_pdf = extraDocumentUrl;
+						} else if (extraDocumentFileInputType === 'base64') {
+							const extraDocumentBase64 = this.getNodeParameter('extraDocumentBase64', i) as string;
+							body.base64_pdf = extraDocumentBase64;
 						}
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/docs/${documentId}/signers`,
+							url: `${baseUrl}/api/v1/docs/${documentToken}/upload-extra-doc/`,
 							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'addExtraDocumentFromTemplate') {
+						// Add extra document from template with variable replacement
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const templateId = this.getNodeParameter('extraDocumentTemplateId', i) as string;
+						const templateData = this.getNodeParameter('extraDocumentTemplateData', i) as IDataObject;
 
-					} else if (operation === 'getAll') {
-						// Get all signers
-						const options: IRequestOptions = {
-							method: 'GET',
-							url: `${baseUrl}/api/v1/docs/${documentId}/signers`,
+						// Build request body according to ZapSign API documentation
+						const body: IDataObject = {
+							template_id: templateId,
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-
-						if (Array.isArray(responseData)) {
-							returnData.push(...responseData);
-						} else {
-							returnData.push(responseData);
+						// Add template data (variables) if provided
+						if (templateData && Object.keys(templateData).length > 0) {
+							// Convert template data to the format expected by the API
+							// The API expects an array of objects with 'de' (variable name) and 'para' (value)
+							const dataArray = [];
+							for (const [key, value] of Object.entries(templateData)) {
+								if (key && value) {
+									dataArray.push({
+										de: key,
+										para: value,
+									});
+								}
+							}
+							if (dataArray.length > 0) {
+								body.data = dataArray;
+							}
 						}
 
-					} else if (operation === 'remove') {
-						// Remove signer
-						const signerEmail = this.getNodeParameter('signerEmail', i) as string;
-
 						const options: IRequestOptions = {
-							method: 'DELETE',
-							url: `${baseUrl}/api/v1/docs/${documentId}/signers/${encodeURIComponent(signerEmail)}`,
+							method: 'POST',
+							url: `${baseUrl}/api/v1/models/${documentToken}/upload-extra-doc/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
-
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 					} else if (operation === 'update') {
-						// Update signer
-						const signerEmail = this.getNodeParameter('signerEmail', i) as string;
-						const signerName = this.getNodeParameter('signerName', i) as string;
-						const authMethod = this.getNodeParameter('authMethod', i) as string;
-						const phoneNumber = this.getNodeParameter('phoneNumber', i, '') as string;
-						const requireDocAuth = this.getNodeParameter('requireDocAuth', i) as boolean;
-						const requireFacialRecognition = this.getNodeParameter('requireFacialRecognition', i) as boolean;
+						// Update document data while in progress
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const newDocumentName = this.getNodeParameter('newDocumentName', i) as string;
+						const newDateLimitToSign = this.getNodeParameter('newDateLimitToSign', i) as string;
+						const newFolderPath = this.getNodeParameter('newFolderPath', i) as string;
+						const newFolderToken = this.getNodeParameter('newFolderToken', i) as string;
+						const extraDocsToRename = this.getNodeParameter('extraDocsToRename', i) as IDataObject;
 
-						const body: IDataObject = {
-							name: signerName,
-							auth_method: authMethod,
-							require_doc_auth: requireDocAuth,
-							require_facial_recognition: requireFacialRecognition,
-						};
+						// Build request body according to ZapSign API documentation
+						const body: IDataObject = {};
 
-						if (phoneNumber) {
-							body.phone_number = phoneNumber;
+						// Add optional fields if provided
+						if (newDocumentName) {
+							body.name = newDocumentName;
+						}
+						if (newDateLimitToSign) {
+							body.date_limit_to_sign = newDateLimitToSign;
+						}
+						if (newFolderPath) {
+							body.folder_path = newFolderPath;
+						}
+						if (newFolderToken) {
+							body.folder_token = newFolderToken;
+						}
+
+						// Add extra documents to rename if provided
+						if (extraDocsToRename && extraDocsToRename.extraDocToken && extraDocsToRename.newExtraDocName) {
+							body.extra_docs = [{
+								token: extraDocsToRename.extraDocToken,
+								name: extraDocsToRename.newExtraDocName,
+							}];
 						}
 
 						const options: IRequestOptions = {
 							method: 'PUT',
-							url: `${baseUrl}/api/v1/docs/${documentId}/signers/${encodeURIComponent(signerEmail)}`,
+							url: `${baseUrl}/api/v1/docs/${documentToken}/`,
 							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
+					} else if (operation === 'reorderEnvelope') {
+						// Reorder documents within an envelope
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const documentDisplayOrder = this.getNodeParameter('documentDisplayOrder', i) as IDataObject;
+
+						// Build request body according to ZapSign API documentation
+						const body: IDataObject = {};
+
+						// Extract document tokens from the fixed collection
+						if (documentDisplayOrder && documentDisplayOrder.documentToken) {
+							const tokens = Array.isArray(documentDisplayOrder.documentToken) 
+								? documentDisplayOrder.documentToken 
+								: [documentDisplayOrder.documentToken];
+							
+							// Filter out empty tokens and create the document_display_order array
+							const validTokens = tokens.filter((token: IDataObject) => {
+								const docToken = token.documentToken;
+								return typeof docToken === 'string' && docToken.trim() !== '';
+							});
+							
+							if (validTokens.length > 0) {
+								body.document_display_order = validTokens.map((token: IDataObject) => token.documentToken as string);
+							}
+						}
+
+													// Validate that we have at least one document token
+							if (!body.document_display_order || (Array.isArray(body.document_display_order) && body.document_display_order.length === 0)) {
+								throw new NodeOperationError(this.getNode(), 'At least one document token is required for reordering.', {
+									itemIndex: i,
+								});
+							}
+
+						const options: IRequestOptions = {
+							method: 'PUT',
+							url: `${baseUrl}/api/v1/docs/${documentToken}/document-display-order/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
+						};
+
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 					}
+
+				} else if (resource === 'signer') {
+					const signerHandlers: Record<string, (idx: number) => Promise<void>> = {
+						add: async (idx: number) => {
+							const documentToken = this.getNodeParameter('signerDocumentToken', idx) as string;
+							const signerEmail = this.getNodeParameter('signerEmail', idx) as string;
+							const signerName = this.getNodeParameter('signerName', idx) as string;
+							const authMethod = this.getNodeParameter('authMethod', idx) as string;
+							const phoneCountry = this.getNodeParameter('phoneCountry', idx, '') as string;
+							const phoneNumber = this.getNodeParameter('phoneNumber', idx, '') as string;
+							const redirectLink = this.getNodeParameter('redirectLink', idx, '') as string;
+							const requireDocAuth = this.getNodeParameter('requireDocAuth', idx) as boolean;
+							const requireFacialRecognition = this.getNodeParameter('requireFacialRecognition', idx) as boolean;
+
+							const body: IDataObject = {
+								email: signerEmail,
+								name: signerName,
+								auth_mode: authMethod,
+								require_document_photo: requireDocAuth,
+								require_selfie_photo: requireFacialRecognition,
+							};
+
+							if (redirectLink) body.redirect_link = redirectLink;
+							if (phoneCountry) body.phone_country = phoneCountry;
+							if (phoneNumber) body.phone_number = phoneNumber;
+
+							const lockName = this.getNodeParameter('lockName', idx, false) as boolean;
+							const lockEmail = this.getNodeParameter('lockEmail', idx, false) as boolean;
+							const lockPhone = this.getNodeParameter('lockPhone', idx, false) as boolean;
+							const qualification = this.getNodeParameter('qualification', idx, '') as string;
+							const externalId = this.getNodeParameter('externalId', idx, '') as string;
+							const sendAutomaticEmail = this.getNodeParameter('sendAutomaticEmail', idx, true) as boolean;
+							const sendAutomaticWhatsapp = this.getNodeParameter('sendAutomaticWhatsapp', idx, false) as boolean;
+							const sendAutomaticWhatsappSignedFile = this.getNodeParameter('sendAutomaticWhatsappSignedFile', idx, false) as boolean;
+							const requireCpf = this.getNodeParameter('requireCpf', idx, false) as boolean;
+							const cpf = this.getNodeParameter('cpf', idx, '') as string;
+							const validateCpf = this.getNodeParameter('validateCpf', idx, false) as boolean;
+							const selfieValidationType = this.getNodeParameter('selfieValidationType', idx, '') as string;
+
+							if (lockName) body.lock_name = lockName;
+							if (lockEmail) body.lock_email = lockEmail;
+							if (lockPhone) body.lock_phone = lockPhone;
+							if (qualification) body.qualification = qualification;
+							if (externalId) body.external_id = externalId;
+							if (sendAutomaticEmail !== undefined) body.send_automatic_email = sendAutomaticEmail;
+							if (sendAutomaticWhatsapp !== undefined) body.send_automatic_whatsapp = sendAutomaticWhatsapp;
+							if (sendAutomaticWhatsappSignedFile !== undefined) body.send_automatic_whatsapp_signed_file = sendAutomaticWhatsappSignedFile;
+							if (requireCpf !== undefined) body.require_cpf = requireCpf;
+							if (cpf) body.cpf = cpf;
+							if (validateCpf !== undefined) body.validate_cpf = validateCpf;
+							if (selfieValidationType) body.selfie_validation_type = selfieValidationType;
+
+							const options: IRequestOptions = {
+								method: 'POST',
+								url: `${baseUrl}/api/v1/docs/${documentToken}/add-signer/`,
+								body,
+							};
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						},
+						remove: async (idx: number) => {
+							const signerToken = this.getNodeParameter('signerToken', idx) as string;
+							const options: IRequestOptions = {
+								method: 'DELETE',
+								url: `${baseUrl}/api/v1/signer/${encodeURIComponent(signerToken)}/remove/`,
+							};
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						},
+						update: async (idx: number) => {
+							const signerToken = this.getNodeParameter('signerToken', idx) as string;
+							const signerName = this.getNodeParameter('signerName', idx) as string;
+							const authMethod = this.getNodeParameter('authMethod', idx) as string;
+							const phoneCountry = this.getNodeParameter('phoneCountry', idx, '') as string;
+							const phoneNumber = this.getNodeParameter('phoneNumber', idx, '') as string;
+							const redirectLink = this.getNodeParameter('redirectLink', idx, '') as string;
+							const requireDocAuth = this.getNodeParameter('requireDocAuth', idx) as boolean;
+							const requireFacialRecognition = this.getNodeParameter('requireFacialRecognition', idx) as boolean;
+							const newSignerEmail = this.getNodeParameter('newSignerEmail', idx, '') as string;
+							const lockName = this.getNodeParameter('lockName', idx, false) as boolean;
+							const lockEmail = this.getNodeParameter('lockEmail', idx, false) as boolean;
+							const lockPhone = this.getNodeParameter('lockPhone', idx, false) as boolean;
+							const qualification = this.getNodeParameter('qualification', idx, '') as string;
+							const externalId = this.getNodeParameter('externalId', idx, '') as string;
+							const sendAutomaticEmail = this.getNodeParameter('sendAutomaticEmail', idx, undefined) as boolean | undefined;
+							const sendAutomaticWhatsapp = this.getNodeParameter('sendAutomaticWhatsapp', idx, undefined) as boolean | undefined;
+							const sendAutomaticWhatsappSignedFile = this.getNodeParameter('sendAutomaticWhatsappSignedFile', idx, undefined) as boolean | undefined;
+							const requireCpf = this.getNodeParameter('requireCpf', idx, undefined) as boolean | undefined;
+							const cpf = this.getNodeParameter('cpf', idx, '') as string;
+							const validateCpf = this.getNodeParameter('validateCpf', idx, undefined) as boolean | undefined;
+							const selfieValidationType = this.getNodeParameter('selfieValidationType', idx, '') as string;
+
+							const body: IDataObject = {};
+							if (signerName) body.name = signerName;
+							if (newSignerEmail) body.email = newSignerEmail;
+							if (authMethod) body.auth_mode = authMethod;
+							if (phoneCountry) body.phone_country = phoneCountry;
+							if (phoneNumber) body.phone_number = phoneNumber;
+							if (redirectLink) body.redirect_link = redirectLink;
+							if (requireDocAuth !== undefined) body.require_document_photo = requireDocAuth;
+							if (requireFacialRecognition !== undefined) body.require_selfie_photo = requireFacialRecognition;
+							if (lockName !== undefined) body.lock_name = lockName;
+							if (lockEmail !== undefined) body.lock_email = lockEmail;
+							if (lockPhone !== undefined) body.lock_phone = lockPhone;
+							if (qualification) body.qualification = qualification;
+							if (externalId) body.external_id = externalId;
+							if (sendAutomaticEmail !== undefined) body.send_automatic_email = sendAutomaticEmail;
+							if (sendAutomaticWhatsapp !== undefined) body.send_automatic_whatsapp = sendAutomaticWhatsapp;
+							if (sendAutomaticWhatsappSignedFile !== undefined) body.send_automatic_whatsapp_signed_file = sendAutomaticWhatsappSignedFile;
+							if (requireCpf !== undefined) body.require_cpf = requireCpf;
+							if (cpf) body.cpf = cpf;
+							if (validateCpf !== undefined) body.validate_cpf = validateCpf;
+							if (selfieValidationType) body.selfie_validation_type = selfieValidationType;
+
+							const options: IRequestOptions = {
+								method: 'POST',
+								url: `${baseUrl}/api/v1/signers/${encodeURIComponent(signerToken)}/`,
+								body,
+							};
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						},
+					};
+
+					const signerHandler = signerHandlers[operation as string];
+					if (!signerHandler) {
+						throw new NodeOperationError(this.getNode(), `Unsupported signer operation: ${operation}`, { itemIndex: i });
+					}
+					await signerHandler(i);
 
 				} else if (resource === 'template') {
 					if (operation === 'getAll') {
@@ -774,16 +2493,12 @@ export class ZapSign implements INodeType {
 							},
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
+						const responseData = await requestJson(this, options);
 
 						if (Array.isArray(responseData)) {
-							returnData.push(...responseData);
+							pushResult(returnData, responseData as IDataObject[]);
 						} else {
-							returnData.push(responseData);
+							pushResult(returnData, responseData as IDataObject);
 						}
 
 					} else if (operation === 'createDocument') {
@@ -792,22 +2507,66 @@ export class ZapSign implements INodeType {
 						const name = this.getNodeParameter('name', i) as string;
 
 						const body: IDataObject = {
-							name,
 							template_id: templateId,
 						};
 
+						// Add optional parameters if provided
+						if (name) {
+							body.name = name;
+						}
+
+						// Add signer information if provided
+						const signerName = this.getNodeParameter('signerName', i, '') as string;
+						const signerEmail = this.getNodeParameter('signerEmail', i, '') as string;
+						const signerPhoneCountry = this.getNodeParameter('signerPhoneCountry', i, '') as string;
+						const signerPhoneNumber = this.getNodeParameter('signerPhoneNumber', i, '') as string;
+
+						if (signerName) {
+							body.signer_name = signerName;
+						}
+						if (signerEmail) {
+							body.signer_email = signerEmail;
+						}
+						if (signerPhoneCountry) {
+							body.signer_phone_country = signerPhoneCountry;
+						}
+						if (signerPhoneNumber) {
+							body.signer_phone_number = signerPhoneNumber;
+						}
+
+						// Add template data (variables) if provided
+						const templateData = this.getNodeParameter('templateData', i) as IDataObject;
+						if (templateData && Object.keys(templateData).length > 0) {
+							// Convert template data to the format expected by the API
+							// The API expects an array of objects with 'de' (variable name) and 'para' (value)
+							const dataArray = [];
+							for (const [key, value] of Object.entries(templateData)) {
+								if (key && value) {
+									dataArray.push({
+										de: key,
+										para: value,
+									});
+								}
+							}
+							if (dataArray.length > 0) {
+								body.data = dataArray;
+							}
+						}
+
+						// Add additional fields if provided
+						const templateAdditionalFields = this.getNodeParameter('templateAdditionalFields', i) as IDataObject;
+						if (templateAdditionalFields && Object.keys(templateAdditionalFields).length > 0) {
+							Object.assign(body, templateAdditionalFields);
+						}
+
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/docs/from-template`,
+							url: `${baseUrl}/api/v1/models/create-doc/`,
 							body,
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 					}
 
 				} else if (resource === 'webhook') {
@@ -827,12 +2586,8 @@ export class ZapSign implements INodeType {
 							body,
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 
 					} else if (operation === 'getAll') {
 						// Get all webhooks
@@ -846,16 +2601,12 @@ export class ZapSign implements INodeType {
 							},
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
+						const responseData = await requestJson(this, options);
 
 						if (Array.isArray(responseData)) {
-							returnData.push(...responseData);
+							pushResult(returnData, responseData as IDataObject[]);
 						} else {
-							returnData.push(responseData);
+							pushResult(returnData, responseData as IDataObject);
 						}
 
 					} else if (operation === 'delete') {
@@ -867,12 +2618,8 @@ export class ZapSign implements INodeType {
 							url: `${baseUrl}/api/v1/webhooks/${webhookId}`,
 						};
 
-						const responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'zapSignApi',
-							options,
-						);
-						returnData.push(responseData);
+						const responseData = await requestJson(this, options);
+						pushResult(returnData, responseData);
 					}
 				}
 

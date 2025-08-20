@@ -45,6 +45,17 @@ You'll need to set up ZapSign API credentials to use this node:
    - **API Key**: Your ZapSign API key
    - **Environment**: Choose between Production or Sandbox
 
+## Environment Variables (optional)
+
+You can override the default API base URLs using a `.env` file:
+
+```bash
+ZAPSIGN_API_BASE_URL=https://api.zapsign.com.br
+ZAPSIGN_API_BASE_URL_SANDBOX=https://sandbox.api.zapsign.com.br
+```
+
+These are optional; by default the production and sandbox endpoints above are used.
+
 ## Operations
 
 ### ZapSign Node
@@ -53,6 +64,9 @@ The ZapSign node supports the following resources and operations:
 
 #### Document
 - **Create**: Upload and create a new document
+  - **File Upload**: Upload a file from binary data
+  - **Base64**: Provide file content as base64 string
+  - **Public Link**: Provide a public URL to the file
 - **Get**: Retrieve document details
 - **Get All**: List all documents
 - **Send**: Send document for signature
@@ -116,6 +130,26 @@ The ZapSign Trigger node allows you to start workflows when ZapSign events occur
 2. **Switch**: Route based on event type
 3. **Database**: Update document status
 4. **Email**: Send appropriate notifications
+
+## File Input Types for Document Creation
+
+The ZapSign node now supports multiple ways to provide files for document creation:
+
+### File Upload (Binary Data)
+- Use when you have a file uploaded through n8n's binary data system
+- Supports any file type that ZapSign accepts
+- Automatically detects filename and MIME type
+
+### Base64 Encoding
+- Use when you have file content as a base64 string
+- Requires specifying the filename and MIME type manually
+- Useful for files generated programmatically or stored as base64
+
+### Public URL
+- Use when the file is publicly accessible via a URL
+- Automatically downloads the file from the URL
+- Attempts to detect filename and MIME type from the URL
+- Supports common file formats: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, RTF, images (JPG, PNG, GIF, BMP, TIFF), HTML, XML, JSON
 
 ## Authentication Methods
 
@@ -203,6 +237,105 @@ For ZapSign-specific questions, contact ZapSign support at support@zapsign.co
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
+### 1.0.22
+- Updated "List Documents" operation to fully match ZapSign API specification
+- Implements ZapSign API endpoint `GET /api/v1/docs/?page={page}`
+- Added comprehensive filtering options:
+  - **Page navigation**: Page-based pagination (25 documents per page)
+  - **Folder filtering**: Filter by folder path (e.g., "/" for root, "/api/pasta2/" for specific folder)
+  - **Deletion status**: Filter deleted vs non-deleted documents
+  - **Document status**: Filter by pending, signed, or refused status
+  - **Date range**: Filter by creation date (YYYY-MM-DD format)
+  - **Sort order**: Ascending, descending, or default sorting
+- API returns paginated response with count, next/previous links, and results array
+- Response includes temporary file URLs (60-minute expiration) for original_file and signed_file
+- Cache duration: 60 minutes as per API documentation
+- Supports all query parameters: folder_path, deleted, status, created_from, created_to, sort_order
+- **Fixed**: Resolved circular dependency issue with displayOptions that was causing "Max iterations reached" error in n8n
+- **Fixed**: Removed displayOptions from child parameters in collections to prevent circular dependency issues
+- **Fixed**: Corrected TypeScript formatting and indentation issues
+
+### 1.0.16
+- Added "Reorder Documents in Envelope" operation to Document resource
+- Implements ZapSign API endpoint `PUT /api/v1/docs/{doc_token}/document-display-order/`
+- Allows reordering documents within an envelope while it's still in progress
+- Supports multiple document tokens in the desired display order
+- Only works on envelope documents (documents that group multiple files)
+- Requires document to be in "em andamento" (in progress) status
+- Fixed API endpoint to match official documentation exactly
+
+### 1.0.15
+- Added "Update Document" operation to Document resource
+- Implements ZapSign API endpoint `PUT /api/v1/docs/{doc_token}/`
+- Allows updating document data while document is still in progress (not finalized or cancelled)
+- Supports updating: document name, signature deadline, folder path, folder token
+- Supports renaming extra documents via `extra_docs[]` array
+- Only works on documents with "em andamento" (in progress) status
+- Fixed API endpoint to match official documentation exactly
+
+### 1.0.14
+- Updated Get Document operation to match exact ZapSign API specification
+- Changed endpoint from `/api/v1/docs/{id}` to `/api/v1/docs/{id}/` (with trailing slash)
+- API now returns comprehensive document information including:
+  - Basic document details (ID, status, name, timestamps)
+  - File URLs (original_file, signed_file with 60-minute expiration)
+  - Complete signer information with authentication and signature status
+  - Extra documents array with metadata
+  - Template variables (answers array for dynamic templates)
+  - Branding settings and metadata (external_id, folder_path, lang, created_by)
+- Fixed API endpoint to match official documentation exactly
+
+### 1.0.13
+
+### 1.0.12
+- Added "Add Extra Document" operation to Document resource
+- Implements ZapSign API endpoint `/api/v1/docs/{doc_principal_token}/upload-extra-doc/`
+- Supports both URL and Base64 input methods for extra documents
+- Extra documents inherit all settings from the main document
+- Maximum of 14 extra documents per main document (API limitation)
+- Only PDF files up to 10MB are supported for extra documents
+
+### 1.0.11
+- Updated Create Document From Template operation to match exact ZapSign API specification
+- Changed endpoint from `/api/v1/docs/from-template` to `/api/v1/models/create-doc/`
+- Added comprehensive template parameters: signer info, template variables, branding, WhatsApp automation
+- Added support for template data replacement with `data[]` array format
+- Added advanced options: folder management, signature ordering, signer permissions
+- Fixed parameter names to match API documentation exactly
+
+### 1.0.10
+- Added OneClick (ClickWrap) document creation operation
+- Added OneClick-specific settings (signature drawing, custom consent text, redirect)
+- OneClick documents are simplified for consent capture with minimal configuration
+- Maintains compatibility with all file input types (File Upload, Base64, Public Link)
+- Added `oneclick: true` flag for OneClick document identification
+
+### 1.0.9
+- Fixed document creation to match exact ZapSign API specification
+- Changed from form-data to JSON request format
+- Updated API endpoints to use correct paths (/api/v1/docs/)
+- Added proper parameter names (base64_pdf, url_pdf, base64_docx, url_docx)
+- Added required signers array parameter
+- Added comprehensive signer configuration options
+- Added proper additional fields matching API documentation
+- Fixed authentication and request structure issues
+
+### 1.0.8
+- Added support for multiple file input types in document creation:
+  - Base64 encoding for file content
+  - Public URL for file downloads
+  - Enhanced file upload with better MIME type detection
+- Improved error handling for file processing
+- Added comprehensive MIME type support for common file formats
+
+### 1.0.7
+- Added support for multiple file input types in document creation:
+  - Base64 encoding for file content
+  - Public URL for file downloads
+  - Enhanced file upload with better MIME type detection
+- Improved error handling for file processing
+- Added comprehensive MIME type support for common file formats
+
 ### 1.0.6
 - Corrigido formato de autenticação: alterado de 'Authorization: Bearer' para 'apikey'
 
