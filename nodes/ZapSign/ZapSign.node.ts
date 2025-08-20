@@ -697,7 +697,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['get', 'send', 'cancel', 'download', 'addExtraDocument', 'addExtraDocumentFromTemplate', 'update', 'reorderEnvelope'],
+						operation: ['get', 'send', 'cancel', 'download', 'addExtraDocument', 'addExtraDocumentFromTemplate', 'update', 'reorderEnvelope', 'placeSignatures'],
 					},
 				},
 				description: 'Token of the document',
