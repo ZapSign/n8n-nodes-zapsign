@@ -34,13 +34,23 @@ export function mapSignerEntries(entries: IDataObject[]): IDataObject[] {
 
 export function mapOneClickSignerEntries(entries: IDataObject[]): IDataObject[] {
     return entries.map((s) => ({
+        // Required/basic fields
         name: (s.name as string) || '',
         email: (s.email as string) || '',
         phone_country: (s.phone_country as string) || '55',
         phone_number: (s.phone_number as string) || '',
-        lock_name: false,
-        lock_email: false,
-        lock_phone: false,
+
+        // Allowed optional fields for OneClick (no advanced auth fields)
+        send_automatic_email: (s.send_automatic_email as boolean) ?? undefined,
+        order_group: (s.order_group as number) ?? undefined,
+        custom_message: (s.custom_message as string) || undefined,
+        blank_email: (s.blank_email as boolean) || undefined,
+        hide_email: (s.hide_email as boolean) || undefined,
+        blank_phone: (s.blank_phone as boolean) || undefined,
+        hide_phone: (s.hide_phone as boolean) || undefined,
+        qualification: (s.qualification as string) || undefined,
+        external_id: (s.external_id as string) || undefined,
+        redirect_link: (s.redirect_link as string) || undefined,
     }));
 }
 

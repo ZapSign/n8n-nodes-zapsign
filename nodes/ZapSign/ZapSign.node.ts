@@ -327,7 +327,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['create'],
+						operation: ['create', 'createOneClick'],
 					},
 				},
 				description: 'Name of the document',
@@ -1723,46 +1723,57 @@ export class ZapSign implements INodeType {
 						default: '',
 						description: 'Path to folder in ZapSign (folders will be created automatically)',
 					},
+					{
+						displayName: 'Created By',
+						name: 'created_by',
+						type: 'string',
+						default: '',
+						description: 'Email of the user who will be set as document creator',
+					},
+					{
+						displayName: 'Date Limit to Sign',
+						name: 'date_limit_to_sign',
+						type: 'string',
+						default: '',
+						description: 'Signature deadline in YYYY-MM-DD format',
+					},
+					{
+						displayName: 'Signature Order Active',
+						name: 'signature_order_active',
+						type: 'boolean',
+						default: false,
+						description: 'Enable signature ordering between signers',
+					},
+					{
+						displayName: 'Reminder Every N Days',
+						name: 'reminder_every_n_days',
+						type: 'number',
+						default: 0,
+						description: 'Send automatic reminders every N days (0 disables reminders)',
+					},
+					{
+						displayName: 'Disable Signers Get Original File',
+						name: 'disable_signers_get_original_file',
+						type: 'boolean',
+						default: false,
+						description: 'Whether signers can download the original document',
+					},
 					// (moved OneClick Settings to top-level parameter to avoid nested displayOptions in collections)
 				],
 			},
-			// OneClick settings (top-level to avoid nested displayOptions in collections)
+			// OneClick specific option per official docs
 			{
-				displayName: 'OneClick Settings',
-				name: 'oneClickSettings',
-				type: 'collection',
-				placeholder: 'Add OneClick Setting',
-				default: {},
+				displayName: 'Require Signature',
+				name: 'requireSignature',
+				type: 'boolean',
+				default: false,
 				displayOptions: {
 					show: {
 						resource: ['document'],
 						operation: ['createOneClick'],
 					},
 				},
-				description: 'OneClick specific settings for simplified consent',
-				options: [
-					{
-						displayName: 'Require Signature Drawing',
-						name: 'require_signature_drawing',
-						type: 'boolean',
-						default: false,
-						description: 'Whether to require the signer to draw their signature (adds extra security layer)',
-					},
-					{
-						displayName: 'Custom Consent Text',
-						name: 'custom_consent_text',
-						type: 'string',
-						default: '',
-						description: 'Custom text to display for consent (overrides default)',
-					},
-					{
-						displayName: 'Redirect After Sign',
-						name: 'redirect_after_sign',
-						type: 'string',
-						default: '',
-						description: 'URL to redirect to after the user consents (optional)',
-					},
-				],
+				description: 'When OneClick is active, require signer to accept checkbox and draw signature',
 			},
 
 			// List Documents parameters
@@ -2067,6 +2078,10 @@ export class ZapSign implements INodeType {
 							// Markdown content does not require binary handling
 							fileName = 'markdown.md';
 							mimeType = 'text/markdown';
+						} else if (fileInputType === 'markdown') {
+							// Markdown content does not require binary handling
+							fileName = 'markdown.md';
+							mimeType = 'text/markdown';
 						} else {
 							throw new NodeOperationError(this.getNode(), 'Invalid file input type selected.', {
 								itemIndex: i,
@@ -2208,7 +2223,7 @@ export class ZapSign implements INodeType {
 						}
 
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
-						const oneClickSettings = this.getNodeParameter('oneClickSettings', i) as IDataObject;
+						const requireSignature = this.getNodeParameter('requireSignature', i, false) as boolean;
 						// Parse metadata if provided via additionalFields in OneClick as well
 						const additionalFieldsOC = this.getNodeParameter('additionalFields', i) as IDataObject;
 						if (additionalFieldsOC && typeof additionalFieldsOC.metadata === 'string' && (additionalFieldsOC.metadata as string).trim() !== '') {
@@ -2226,19 +2241,14 @@ export class ZapSign implements INodeType {
 						};
 
 						// Add OneClick specific parameters
-						if (oneClickSettings.require_signature_drawing) {
-							body.require_signature_drawing = oneClickSettings.require_signature_drawing;
-						}
-						if (oneClickSettings.custom_consent_text) {
-							body.custom_consent_text = oneClickSettings.custom_consent_text;
-						}
-						if (oneClickSettings.redirect_after_sign) {
-							body.redirect_after_sign = oneClickSettings.redirect_after_sign;
+						body.one_click_active = true;
+						if (requireSignature) {
+							body.require_signature = true;
 						}
 
 						// Add file content based on input type
 						if ((fileInputType as string) === 'markdown') {
-							body.markdown_text = this.getNodeParameter('markdownText', i) as string;
+							throw new NodeOperationError(this.getNode(), 'Markdown input is not supported for OneClick. Use file, base64 or url.', { itemIndex: i });
 						} else if (fileInputType === 'base64') {
 							// For base64, use the appropriate parameter based on file type
 							if (mimeType === 'application/pdf') {
@@ -2280,8 +2290,7 @@ export class ZapSign implements INodeType {
 						}
 						body.signers = mapOneClickSignerEntries(signerEntriesOC);
 
-						// Add OneClick flag to indicate this is a OneClick document
-						body.oneclick = true;
+						// one_click_active already set above
 
 						const options: IRequestOptions = {
 							method: 'POST',
