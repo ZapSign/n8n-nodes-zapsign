@@ -366,7 +366,7 @@ export class ZapSign implements INodeType {
 						operation: ['create', 'createOneClick'],
 					},
 				},
-				description: 'How to provide the file for document creation',
+				description: 'How to provide the file for document creation. For OneClick, only file/base64/url (PDF or DOCX) are supported. Markdown is not supported for OneClick.',
 			},
 			{
 				displayName: 'File',
@@ -458,7 +458,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['create', 'createOneClick'],
+						operation: ['create'],
 						fileInputType: ['markdown'],
 					},
 				},
