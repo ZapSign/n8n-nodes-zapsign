@@ -1592,6 +1592,21 @@ export class ZapSign implements INodeType {
 						description: 'Brand name to appear in emails (max 100 characters)',
 					},
 					{
+						displayName: 'Allow Refuse Signature',
+						name: 'allow_refuse_signature',
+						type: 'boolean',
+						default: true,
+						description: 'Allow signer to refuse the document',
+					},
+					{
+						displayName: 'Metadata (JSON)',
+						name: 'metadata',
+						type: 'string',
+						typeOptions: { rows: 4 },
+						default: '',
+						description: 'JSON object with metadata to attach to the document (key-value pairs)',
+					},
+					{
 						displayName: 'External ID',
 						name: 'external_id',
 						type: 'string',
@@ -1881,6 +1896,14 @@ export class ZapSign implements INodeType {
 						}
 
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
+						// Parse metadata if provided as JSON string
+						if (additionalFields && typeof additionalFields.metadata === 'string' && (additionalFields.metadata as string).trim() !== '') {
+							try {
+								additionalFields.metadata = JSON.parse(additionalFields.metadata as string) as IDataObject;
+							} catch (e) {
+								throw new NodeOperationError(this.getNode(), 'Invalid JSON in Metadata field. Please provide a valid JSON object string.', { itemIndex: i });
+							}
+						}
 
 						// According to ZapSign API docs, we need to send JSON with specific parameters
 						const body: IDataObject = {
@@ -1990,6 +2013,15 @@ export class ZapSign implements INodeType {
 
 						const additionalFields = this.getNodeParameter('additionalFields', i) as IDataObject;
 						const oneClickSettings = this.getNodeParameter('oneClickSettings', i) as IDataObject;
+						// Parse metadata if provided via additionalFields in OneClick as well
+						const additionalFieldsOC = this.getNodeParameter('additionalFields', i) as IDataObject;
+						if (additionalFieldsOC && typeof additionalFieldsOC.metadata === 'string' && (additionalFieldsOC.metadata as string).trim() !== '') {
+							try {
+								additionalFieldsOC.metadata = JSON.parse(additionalFieldsOC.metadata as string) as IDataObject;
+							} catch (e) {
+								throw new NodeOperationError(this.getNode(), 'Invalid JSON in Metadata field. Please provide a valid JSON object string.', { itemIndex: i });
+							}
+						}
 
 						// Build OneClick document body
 						const body: IDataObject = {
