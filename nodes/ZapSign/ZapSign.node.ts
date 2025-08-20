@@ -111,12 +111,6 @@ export class ZapSign implements INodeType {
 						action: 'Get many documents',
 					},
 					{
-						name: 'Send',
-						value: 'send',
-						description: 'Send document for signature',
-						action: 'Send a document for signature',
-					},
-					{
 						name: 'Cancel',
 						value: 'cancel',
 						description: 'Cancel a document',
@@ -127,12 +121,6 @@ export class ZapSign implements INodeType {
 						value: 'refuse',
 						description: 'Refuse a document (same as cancel)',
 						action: 'Refuse a document',
-					},
-					{
-						name: 'Download',
-						value: 'download',
-						description: 'Download a signed document',
-						action: 'Download a document',
 					},
 					{
 						name: 'Place Signatures',
@@ -2374,19 +2362,6 @@ export class ZapSign implements INodeType {
 							pushResult(returnData, responseData as IDataObject);
 						}
 
-					} else if (operation === 'send') {
-						// Send document for signature
-						const documentToken = this.getNodeParameter('documentToken', i) as string;
-
-						const options: IRequestOptions = {
-							method: 'POST',
-							url: `${baseUrl}/api/v1/docs/${documentToken}/send`,
-							body: {},
-						};
-
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
-
 					} else if (operation === 'cancel') {
 						// Cancel document
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
@@ -2423,31 +2398,6 @@ export class ZapSign implements INodeType {
 						};
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
-					} else if (operation === 'download') {
-						// Download signed document
-						const documentToken = this.getNodeParameter('documentToken', i) as string;
-
-						const options: IRequestOptions = {
-							method: 'GET',
-							url: `${baseUrl}/api/v1/docs/${documentToken}/download`,
-							encoding: null, // Get binary data
-						};
-
-						const responseData = await this.helpers.request(options);
-
-						// Convert to binary data
-						const binaryData = await this.helpers.prepareBinaryData(
-							responseData as Buffer,
-							`document-${documentToken}.pdf`,
-							'application/pdf',
-						);
-
-						returnData.push({
-							json: { documentToken, downloaded: true },
-							binary: {
-								data: binaryData,
-							},
-						});
 					} else if (operation === 'placeSignatures') {
 						// Place signatures/rubricas by coordinates
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
