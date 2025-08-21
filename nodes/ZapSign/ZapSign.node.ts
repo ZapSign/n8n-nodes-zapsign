@@ -719,6 +719,20 @@ export class ZapSign implements INodeType {
 				description: 'Token of the document',
 			},
 			{
+				displayName: 'Download PDF',
+				name: 'downloadPdf',
+				type: 'boolean',
+				default: false,
+				required: false,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['activityHistory'],
+					},
+				},
+				description: 'Whether to return the activity history as a PDF file (true) or JSON format (false)',
+			},
+			{
 				displayName: 'Rejected Reason',
 				name: 'rejectedReason',
 				type: 'string',
@@ -2403,9 +2417,10 @@ export class ZapSign implements INodeType {
 					} else if (operation === 'activityHistory') {
 						// Get document activity history
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const downloadPdf = this.getNodeParameter('downloadPdf', i, false) as boolean;
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/api/v1/docs/${documentToken}/activities/`,
+							url: `${baseUrl}/api/v1/docs/signer-log/${documentToken}?download_pdf=${downloadPdf}`,
 						};
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
