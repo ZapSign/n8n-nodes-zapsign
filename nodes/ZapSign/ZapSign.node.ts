@@ -2963,6 +2963,12 @@ export class ZapSign implements INodeType {
 						const templateToken = this.getNodeParameter('templateToken', i) as string;
 						const inputsCollection = this.getNodeParameter('templateFormInputs', i) as IDataObject;
 						const inputs = (inputsCollection?.input as IDataObject[]) || [];
+
+						// Add debug logging
+						this.logger.debug(`Update Template Form Request - Template Token: ${templateToken}`);
+						this.logger.debug(`Update Template Form Request - Inputs Collection: ${JSON.stringify(inputsCollection)}`);
+						this.logger.debug(`Update Template Form Request - Base URL: ${baseUrl}`);
+
 						const body: IDataObject = {};
 						if (Array.isArray(inputs) && inputs.length > 0) {
 							body.inputs = inputs.map((inp) => ({
@@ -2975,13 +2981,25 @@ export class ZapSign implements INodeType {
 								order: (inp.order as number) ?? 1,
 							})).filter((e) => e.variable);
 						}
+
+						this.logger.debug(`Update Template Form Request - Body: ${JSON.stringify(body)}`);
+
 						const options: IRequestOptions = {
-							method: 'POST',
-							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/update-form/`,
+							method: 'PUT',
+							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/`,
 							body,
 						};
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
+
+						this.logger.debug(`Update Template Form Request - URL: ${options.url}`);
+
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Update Template Form Error: ${error.message}`);
+							this.logger.error(`Update Template Form Request Options: ${JSON.stringify(options)}`);
+							throw error;
+						}
 					}
 
 				} else if (resource === 'backgroundCheck') {
