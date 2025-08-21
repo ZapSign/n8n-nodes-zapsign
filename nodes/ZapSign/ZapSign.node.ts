@@ -482,7 +482,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['create', 'createOneClick'],
+						operation: ['create', 'createOneClick', 'createDocument'],
 					},
 				},
 				description: 'Signers for the document',
@@ -2874,6 +2874,27 @@ export class ZapSign implements INodeType {
 						// Add optional parameters if provided
 						if (name) {
 							body.name = name;
+						}
+
+						// Add signer information if provided
+						const signers = this.getNodeParameter('signers', i) as IDataObject;
+						const signerEntries = (signers?.signer as IDataObject[]) || [];
+						
+						if (Array.isArray(signerEntries) && signerEntries.length > 0) {
+							// Use the first signer for basic info
+							const firstSigner = signerEntries[0];
+							if (firstSigner.name) {
+								body.signer_name = firstSigner.name as string;
+							}
+							if (firstSigner.email) {
+								body.signer_email = firstSigner.email as string;
+							}
+							if (firstSigner.phone_country) {
+								body.signer_phone_country = firstSigner.phone_country as string;
+							}
+							if (firstSigner.phone_number) {
+								body.signer_phone_number = firstSigner.phone_number as string;
+							}
 						}
 
 						// Signer information is now provided dynamically via template variables; no static signer fields here
