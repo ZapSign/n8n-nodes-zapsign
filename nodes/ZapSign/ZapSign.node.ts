@@ -2969,7 +2969,9 @@ export class ZapSign implements INodeType {
 						this.logger.debug(`Update Template Form Request - Inputs Collection: ${JSON.stringify(inputsCollection)}`);
 						this.logger.debug(`Update Template Form Request - Base URL: ${baseUrl}`);
 
-						const body: IDataObject = {};
+						const body: IDataObject = {
+							template_id: templateToken, // Required by API
+						};
 						if (Array.isArray(inputs) && inputs.length > 0) {
 							body.inputs = inputs.map((inp) => ({
 								variable: (inp.variable as string) || '',
