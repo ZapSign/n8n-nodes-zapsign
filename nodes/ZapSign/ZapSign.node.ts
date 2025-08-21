@@ -2452,7 +2452,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/validate-signatures/`,
+							url: `${baseUrl}/api/v1/validate-pdf-signature`,
 							formData: {
 								file: {
 									value: fileData,
