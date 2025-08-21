@@ -951,12 +951,12 @@ export class ZapSign implements INodeType {
 			{
 				displayName: 'Document Display Order',
 				name: 'documentDisplayOrder',
-				type: 'collection',
+				type: 'fixedCollection',
 				typeOptions: {
 					multipleValues: true,
 				},
 				placeholder: 'Add Document Token',
-				default: {},
+				default: { documentToken: [] },
 				required: true,
 				displayOptions: {
 					show: {
@@ -967,12 +967,18 @@ export class ZapSign implements INodeType {
 				description: 'List of document tokens in the desired display order. Add at least one document token to specify the order.',
 				options: [
 					{
-						displayName: 'Document Token',
+						displayName: 'Document Tokens',
 						name: 'documentToken',
-						type: 'string',
-						default: '',
-						required: true,
-						description: 'Token of the document to include in the envelope order',
+						values: [
+							{
+								displayName: 'Document Token',
+								name: 'token',
+								type: 'string',
+								default: '',
+								required: true,
+								description: 'Token of the document to include in the envelope order',
+							},
+						],
 					},
 				],
 			},
@@ -2622,12 +2628,12 @@ export class ZapSign implements INodeType {
 							
 							// Filter out empty tokens and create the document_display_order array
 							const validTokens = tokens.filter((token: IDataObject) => {
-								const docToken = token.documentToken;
+								const docToken = token.token;
 								return typeof docToken === 'string' && docToken.trim() !== '';
 							});
 							
 							if (validTokens.length > 0) {
-								body.document_display_order = validTokens.map((token: IDataObject) => token.documentToken as string);
+								body.document_display_order = validTokens.map((token: IDataObject) => token.token as string);
 							}
 						}
 
