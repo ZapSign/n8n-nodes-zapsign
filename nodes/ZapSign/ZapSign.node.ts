@@ -459,20 +459,7 @@ export class ZapSign implements INodeType {
 				},
 				description: 'Raw Markdown content to generate the document (alternative to url/base64/upload)',
 			},
-			{
-				displayName: 'File Input Type',
-				name: 'validateFileInputType',
-				type: 'options',
-				options: [
-					{ name: 'File Upload', value: 'file' },
-					{ name: 'Base64 Content', value: 'base64' },
-					{ name: 'File URL', value: 'url' },
-				],
-				default: 'file',
-				required: true,
-				displayOptions: { show: { resource: ['document'], operation: ['validateSignatures'] } },
-				description: 'How to provide the file for signature validation (PDF via file, base64 or URL).',
-			},
+
 			{
 				displayName: 'Validate File',
 				name: 'validateBinaryPropertyName',
@@ -483,59 +470,11 @@ export class ZapSign implements INodeType {
 					show: {
 						resource: ['document'],
 						operation: ['validateSignatures'],
-						validateFileInputType: ['file'],
 					},
 				},
 				description: 'Name of the binary property containing the file data to validate',
 			},
-			{
-				displayName: 'Validate Base64 Content',
-				name: 'validateBase64Content',
-				type: 'string',
-				typeOptions: {
-					rows: 4,
-				},
-				default: '',
-				required: true,
-				displayOptions: {
-					show: {
-						resource: ['document'],
-						operation: ['validateSignatures'],
-						validateFileInputType: ['base64'],
-					},
-				},
-				description: 'File content encoded in base64 to validate',
-			},
-			{
-				displayName: 'Validate File Name',
-				name: 'validateFileName',
-				type: 'string',
-				default: 'document.pdf',
-				required: true,
-				displayOptions: {
-					show: {
-						resource: ['document'],
-						operation: ['validateSignatures'],
-						validateFileInputType: ['base64'],
-					},
-				},
-				description: 'Name of the file to validate (including extension)',
-			},
-			{
-				displayName: 'Validate File URL',
-				name: 'validateFileUrl',
-				type: 'string',
-				default: '',
-				required: true,
-				displayOptions: {
-					show: {
-						resource: ['document'],
-						operation: ['validateSignatures'],
-						validateFileInputType: ['url'],
-					},
-				},
-				description: 'Public URL to the file to validate',
-			},
+
 			{
 				displayName: 'Signers',
 				name: 'signers',
@@ -2504,44 +2443,17 @@ export class ZapSign implements INodeType {
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
 					} else if (operation === 'validateSignatures') {
-						// Validate signatures for a PDF file
-						const validateFileInputType = this.getNodeParameter('validateFileInputType', i) as string;
-						let fileData: Buffer | string;
-						let fileName: string;
-						let contentType: string;
-
-						if (validateFileInputType === 'file') {
-							const binaryPropertyName = this.getNodeParameter('validateBinaryPropertyName', i) as string;
-							const binaryDataObj = this.helpers.assertBinaryData(i, binaryPropertyName);
-							fileData = Buffer.from(binaryDataObj.data, 'base64');
-							fileName = binaryDataObj.fileName || 'document.pdf';
-							contentType = binaryDataObj.mimeType || 'application/pdf';
-						} else if (validateFileInputType === 'base64') {
-							const base64Content = this.getNodeParameter('validateBase64Content', i) as string;
-							fileData = Buffer.from(base64Content, 'base64');
-							fileName = this.getNodeParameter('validateFileName', i) as string;
-							contentType = 'application/pdf';
-						} else if (validateFileInputType === 'url') {
-							const fileUrl = this.getNodeParameter('validateFileUrl', i) as string;
-							fileData = fileUrl;
-							fileName = 'document.pdf';
-							contentType = 'application/pdf';
-						} else {
-							throw new NodeOperationError(this.getNode(), 'Invalid file input type for signature validation');
-						}
+						// Validate signatures for a PDF file via upload
+						const binaryPropertyName = this.getNodeParameter('validateBinaryPropertyName', i) as string;
+						const binaryDataObj = this.helpers.assertBinaryData(i, binaryPropertyName);
+						const fileData = Buffer.from(binaryDataObj.data, 'base64');
+						const fileName = binaryDataObj.fileName || 'document.pdf';
+						const contentType = binaryDataObj.mimeType || 'application/pdf';
 
 						const options: IRequestOptions = {
 							method: 'POST',
 							url: `${baseUrl}/api/v1/validate-signatures/`,
-						};
-
-						if (validateFileInputType === 'url') {
-							// For URL, send as JSON body
-							options.body = { url: fileData };
-							options.headers = { 'Content-Type': 'application/json' };
-						} else {
-							// For file and base64, send as multipart/form-data
-							options.formData = {
+							formData: {
 								file: {
 									value: fileData,
 									options: {
@@ -2549,8 +2461,8 @@ export class ZapSign implements INodeType {
 										contentType: contentType,
 									},
 								},
-							};
-						}
+							},
+						};
 
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
