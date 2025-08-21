@@ -951,7 +951,7 @@ export class ZapSign implements INodeType {
 			{
 				displayName: 'Document Display Order',
 				name: 'documentDisplayOrder',
-				type: 'fixedCollection',
+				type: 'collection',
 				typeOptions: {
 					multipleValues: true,
 				},
