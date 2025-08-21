@@ -57,10 +57,15 @@ export async function requestJson(
             if (zapCode === 'refuse_not_allowed') {
                 throw new Error('Refusal not allowed for this document (403: refuse_not_allowed). Check permissions or document state.');
             }
-            if (zapMessage) {
-                throw new Error(`Forbidden: ${zapMessage}`);
+            if (zapCode === 'insufficient_permissions' || zapCode === 'permission_denied') {
+                throw new Error(`Forbidden (403): ${zapMessage || 'Insufficient permissions'}. Your API token may not have access to this specific operation or document.`);
             }
-            throw new Error('Forbidden (403): Check credentials, permissions, or document state.');
+            if (zapMessage) {
+                throw new Error(`Forbidden (403): ${zapMessage}. This may indicate insufficient permissions or the operation is not allowed for this document state.`);
+            }
+            // Enhanced 403 error with more context
+            const context = `Status: 403 Forbidden | Code: ${zapCode || 'none'} | Message: ${zapMessage || 'none'} | Raw: ${JSON.stringify(parsed || {})}`;
+            throw new Error(`Forbidden (403): Check credentials, permissions, or document state. ${context}`);
         }
 
         if (status === 404) {

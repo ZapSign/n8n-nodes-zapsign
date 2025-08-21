@@ -2417,7 +2417,14 @@ export class ZapSign implements INodeType {
 					} else if (operation === 'activityHistory') {
 						// Get document activity history
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						if (!documentToken || typeof documentToken !== 'string' || documentToken.trim() === '') {
+							throw new NodeOperationError(this.getNode(), 'Document Token is required for getting activity history.', { itemIndex: i });
+						}
 						const downloadPdf = this.getNodeParameter('downloadPdf', i, false) as boolean;
+						
+						// Log the request details for debugging
+						this.logger.debug(`Activity History Request - URL: ${baseUrl}/api/v1/docs/signer-log/${documentToken}?download_pdf=${downloadPdf}`);
+						
 						const options: IRequestOptions = {
 							method: 'GET',
 							url: `${baseUrl}/api/v1/docs/signer-log/${documentToken}?download_pdf=${downloadPdf}`,
