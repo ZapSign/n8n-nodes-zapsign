@@ -2862,6 +2862,11 @@ export class ZapSign implements INodeType {
 						const templateToken = this.getNodeParameter('templateToken', i) as string;
 						const name = this.getNodeParameter('name', i) as string;
 
+						// Add debug logging
+						this.logger.debug(`Create Document from Template Request - Template Token: ${templateToken}`);
+						this.logger.debug(`Create Document from Template Request - Name: ${name}`);
+						this.logger.debug(`Create Document from Template Request - Base URL: ${baseUrl}`);
+
 						const body: IDataObject = {
 							template_id: templateToken,
 						};
@@ -2876,10 +2881,17 @@ export class ZapSign implements INodeType {
 						// Add template data (variables) if provided (fixedCollection -> array of {variableName, variableValue})
 						const templateData = this.getNodeParameter('templateData', i) as IDataObject;
 						const variables = (templateData?.variable as IDataObject[]) || [];
+						
+						this.logger.debug(`Create Document from Template Request - Template Data: ${JSON.stringify(templateData)}`);
+						this.logger.debug(`Create Document from Template Request - Variables: ${JSON.stringify(variables)}`);
+						
 						if (Array.isArray(variables) && variables.length > 0) {
 							const dataArray = variables
 								.map((entry) => ({ de: (entry.variableName as string) || '', para: (entry.variableValue as string) || '' }))
 								.filter((v) => v.de && v.para);
+							
+							this.logger.debug(`Create Document from Template Request - Data Array: ${JSON.stringify(dataArray)}`);
+							
 							if (dataArray.length > 0) {
 								body.data = dataArray;
 							}
@@ -2891,14 +2903,25 @@ export class ZapSign implements INodeType {
 							Object.assign(body, templateAdditionalFields);
 						}
 
+						this.logger.debug(`Create Document from Template Request - Final Body: ${JSON.stringify(body)}`);
+
+						// According to ZapSign API docs: https://docs.zapsign.com.br/documentos/criar-documento-via-modelo
 						const options: IRequestOptions = {
 							method: 'POST',
 							url: `${baseUrl}/api/v1/models/create-doc/`,
 							body,
 						};
 
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
+						this.logger.debug(`Create Document from Template Request - URL: ${options.url}`);
+
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Create Document from Template Error: ${error.message}`);
+							this.logger.error(`Create Document from Template Request Options: ${JSON.stringify(options)}`);
+							throw error;
+						}
 					} else if (operation === 'createTemplateDocx') {
 						// Create template DOCX
 						const name = this.getNodeParameter('name', i) as string;
