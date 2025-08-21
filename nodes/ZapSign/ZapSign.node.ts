@@ -287,12 +287,7 @@ export class ZapSign implements INodeType {
 						description: 'Create a webhook',
 						action: 'Create a webhook',
 					},
-					{
-						name: 'Get Many',
-						value: 'getAll',
-						description: 'Get many webhooks',
-						action: 'Get many webhooks',
-					},
+
 					{
 						name: 'Delete',
 						value: 'delete',
@@ -1612,43 +1607,49 @@ export class ZapSign implements INodeType {
 				description: 'URL to receive webhook notifications',
 			},
 			{
-				displayName: 'Events',
+				displayName: 'Event Type',
 				name: 'events',
-				type: 'multiOptions',
+				type: 'options',
 				options: [
 					{
-						name: 'Document Created',
-						value: 'document.created',
-					},
-					{
-						name: 'Document Sent',
-						value: 'document.sent',
+						name: 'All Document Events (Default)',
+						value: '',
+						description: 'All document events (created, signed, deleted, refused)',
 					},
 					{
 						name: 'Document Signed',
-						value: 'document.signed',
+						value: 'doc_signed',
+						description: 'Document signed event',
 					},
 					{
-						name: 'Document Completed',
-						value: 'document.completed',
+						name: 'Document Created',
+						value: 'doc_created',
+						description: 'Document created event',
 					},
 					{
-						name: 'Document Cancelled',
-						value: 'document.cancelled',
+						name: 'Document Deleted',
+						value: 'doc_deleted',
+						description: 'Document deleted event',
 					},
 					{
-						name: 'Signer Signed',
-						value: 'signer.signed',
+						name: 'Document Refused',
+						value: 'doc_refused',
+						description: 'Document refused event',
+					},
+					{
+						name: 'Email Bounce',
+						value: 'email_bounce',
+						description: 'Email delivery failure event',
 					},
 				],
-				default: ['document.completed'],
+				default: '',
 				displayOptions: {
 					show: {
 						resource: ['webhook'],
 						operation: ['create'],
 					},
 				},
-				description: 'Events to listen for',
+				description: 'Event type to listen for (leave empty for all document events)',
 			},
 			{
 				displayName: 'Webhook ID',
@@ -2045,7 +2046,7 @@ export class ZapSign implements INodeType {
 				default: 50,
 				displayOptions: {
 					show: {
-						resource: ['template', 'webhook'],
+						resource: ['template'],
 						operation: ['getAll'],
 					},
 				},
@@ -3038,14 +3039,15 @@ export class ZapSign implements INodeType {
 						this.logger.debug(`Create Webhook Request - Events: ${JSON.stringify(events)}`);
 						this.logger.debug(`Create Webhook Request - Base URL: ${baseUrl}`);
 
+						// According to ZapSign API docs: https://docs.zapsign.com.br/webhooks/criar-webhook
 						const body: IDataObject = {
 							url: webhookUrl,
-							events,
+							type: events, // Single event type or empty string for all
 						};
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/webhooks`,
+							url: `${baseUrl}/api/v1/user/company/webhook/`,
 							body,
 						};
 
@@ -3061,38 +3063,6 @@ export class ZapSign implements INodeType {
 							throw error;
 						}
 
-					} else if (operation === 'getAll') {
-						// Get all webhooks
-						const limit = this.getNodeParameter('limit', i) as number;
-
-						// Add debug logging
-						this.logger.debug(`Get All Webhooks Request - Limit: ${limit}`);
-						this.logger.debug(`Get All Webhooks Request - Base URL: ${baseUrl}`);
-
-						const options: IRequestOptions = {
-							method: 'GET',
-							url: `${baseUrl}/api/v1/webhooks`,
-							qs: {
-								limit,
-							},
-						};
-
-						this.logger.debug(`Get All Webhooks Request - URL: ${options.url}`);
-
-						try {
-							const responseData = await requestJson(this, options);
-
-							if (Array.isArray(responseData)) {
-								pushResult(returnData, responseData as IDataObject[]);
-							} else {
-								pushResult(returnData, responseData as IDataObject);
-							}
-						} catch (error) {
-							this.logger.error(`Get All Webhooks Error: ${error.message}`);
-							this.logger.error(`Get All Webhooks Request Options: ${JSON.stringify(options)}`);
-							throw error;
-						}
-
 					} else if (operation === 'delete') {
 						// Delete webhook
 						const webhookId = this.getNodeParameter('webhookId', i) as string;
@@ -3101,9 +3071,10 @@ export class ZapSign implements INodeType {
 						this.logger.debug(`Delete Webhook Request - Webhook ID: ${webhookId}`);
 						this.logger.debug(`Delete Webhook Request - Base URL: ${baseUrl}`);
 
+						// According to ZapSign API docs: https://docs.zapsign.com.br/webhooks/criar-webhook
 						const options: IRequestOptions = {
 							method: 'DELETE',
-							url: `${baseUrl}/api/v1/webhooks/${webhookId}`,
+							url: `${baseUrl}/api/v1/user/company/webhook/delete/`,
 						};
 
 						this.logger.debug(`Delete Webhook Request - URL: ${options.url}`);
