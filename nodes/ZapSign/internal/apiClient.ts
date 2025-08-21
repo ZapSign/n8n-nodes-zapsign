@@ -76,6 +76,10 @@ export async function requestJson(
         }
 
         if (status === 400) {
+            // Handle ZapSign-specific error format: {"error": "Signatário tem tentativas"}
+            if (parsed?.error === 'Signatário tem tentativas') {
+                throw new Error('Bad Request (400): Signer still has validation attempts available. This endpoint only works when the signer has exhausted all validation attempts.');
+            }
             if (zapCode === 'signer_has_attempts') {
                 throw new Error(`Bad Request (400): ${zapMessage || 'Signer still has validation attempts available'}. This endpoint only works when the signer has exhausted all validation attempts.`);
             }
