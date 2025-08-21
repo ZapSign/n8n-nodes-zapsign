@@ -2200,18 +2200,32 @@ export class ZapSign implements INodeType {
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
 						const rejectedReason = this.getNodeParameter('rejectedReason', i) as string;
 
+						// Add debug logging
+						this.logger.debug(`Refuse Document Request - Document Token: ${documentToken}`);
+						this.logger.debug(`Refuse Document Request - Rejected Reason: ${rejectedReason}`);
+						this.logger.debug(`Refuse Document Request - Base URL: ${baseUrl}`);
+
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/refuse/`,
-							body: { doc_token: documentToken, rejected_reason: rejectedReason },
+							url: `${baseUrl}/api/v1/docs/${documentToken}/refuse/`,
+							body: { rejected_reason: rejectedReason },
 							headers: {
 								'Content-Type': 'application/json',
 								'User-Agent': 'n8n-nodes-zapsign/1.0',
 							},
 						};
 
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
+						this.logger.debug(`Refuse Document Request - URL: ${options.url}`);
+						this.logger.debug(`Refuse Document Request - Body: ${JSON.stringify(options.body)}`);
+
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Refuse Document Error: ${error.message}`);
+							this.logger.error(`Refuse Document Request Options: ${JSON.stringify(options)}`);
+							throw error;
+						}
 
 					} else if (operation === 'createOneClick') {
 						// Create OneClick document (simplified consent)
@@ -2411,8 +2425,8 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/refuse/`,
-							body: { doc_token: documentToken, rejected_reason: rejectedReason },
+							url: `${baseUrl}/api/v1/docs/${documentToken}/refuse/`,
+							body: { rejected_reason: rejectedReason },
 							headers: {
 								'Content-Type': 'application/json',
 								'User-Agent': 'n8n-nodes-zapsign/1.0',
