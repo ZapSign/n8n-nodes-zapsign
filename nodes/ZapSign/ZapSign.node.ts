@@ -2629,12 +2629,16 @@ export class ZapSign implements INodeType {
 							}
 						}
 
-													// Validate that we have at least one document token
-							if (!body.document_display_order || (Array.isArray(body.document_display_order) && body.document_display_order.length === 0)) {
-								throw new NodeOperationError(this.getNode(), 'At least one document token is required for reordering.', {
-									itemIndex: i,
-								});
-							}
+						// Validate that we have at least one document token
+						if (!body.document_display_order || (Array.isArray(body.document_display_order) && body.document_display_order.length === 0)) {
+							throw new NodeOperationError(this.getNode(), 'At least one document token is required for reordering. Please add document tokens to the Document Display Order field.', {
+								itemIndex: i,
+							});
+						}
+
+						// Log the request details for debugging
+						this.logger.debug(`Reorder Envelope Request - URL: ${baseUrl}/api/v1/docs/${documentToken}/document-display-order/`);
+						this.logger.debug(`Reorder Envelope Request - Body: ${JSON.stringify(body)}`);
 
 						const options: IRequestOptions = {
 							method: 'PUT',
