@@ -741,7 +741,7 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['cancel'],
+						operation: ['cancel', 'refuse'],
 					},
 				},
 				description: 'Reason for cancellation to be stored in the document history',
@@ -2198,15 +2198,17 @@ export class ZapSign implements INodeType {
 					} else if (operation === 'refuse') {
 						// Refuse document (alias of cancel)
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const rejectedReason = this.getNodeParameter('rejectedReason', i) as string;
 
 						// Add debug logging
 						this.logger.debug(`Refuse Document Request - Document Token: ${documentToken}`);
+						this.logger.debug(`Refuse Document Request - Rejected Reason: ${rejectedReason}`);
 						this.logger.debug(`Refuse Document Request - Base URL: ${baseUrl}`);
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/refuse`,
-							body: { doc_token: documentToken },
+							url: `${baseUrl}/api/v1/refuse/`,
+							body: { doc_token: documentToken, rejected_reason: rejectedReason },
 							headers: {
 								'Content-Type': 'application/json'
 							},
@@ -2422,7 +2424,7 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/refuse`,
+							url: `${baseUrl}/api/v1/refuse/`,
 							body: { doc_token: documentToken, rejected_reason: rejectedReason },
 							headers: {
 								'Content-Type': 'application/json',
