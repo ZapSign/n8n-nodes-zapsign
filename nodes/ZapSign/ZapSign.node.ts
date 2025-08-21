@@ -2781,6 +2781,13 @@ export class ZapSign implements INodeType {
 						},
 						resetAttempts: async (idx: number) => {
 							const signerToken = this.getNodeParameter('signerToken', idx) as string;
+							if (!signerToken || typeof signerToken !== 'string' || signerToken.trim() === '') {
+								throw new NodeOperationError(this.getNode(), 'Signer Token is required for resetting validation attempts.', { itemIndex: idx });
+							}
+							
+							// Log the request details for debugging
+							this.logger.debug(`Reset Attempts Request - URL: ${baseUrl}/api/v1/reset-auth-attempts/${encodeURIComponent(signerToken)}/`);
+							
 							const options: IRequestOptions = {
 								method: 'PUT',
 								url: `${baseUrl}/api/v1/reset-auth-attempts/${encodeURIComponent(signerToken)}/`,

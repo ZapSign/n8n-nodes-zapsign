@@ -75,9 +75,14 @@ export async function requestJson(
             throw new Error('Not Found (404): Document not found. Verify the document token is correct.');
         }
 
-        if (status === 400 && zapMessage) {
-            // Surface server validation messages
-            throw new Error(`Bad Request: ${zapMessage}`);
+        if (status === 400) {
+            if (zapCode === 'signer_has_attempts') {
+                throw new Error(`Bad Request (400): ${zapMessage || 'Signer still has validation attempts available'}. This endpoint only works when the signer has exhausted all validation attempts.`);
+            }
+            if (zapMessage) {
+                throw new Error(`Bad Request (400): ${zapMessage}. Check your parameters and ensure the signer has exhausted all validation attempts.`);
+            }
+            throw new Error('Bad Request (400): Check your parameters. This endpoint only works when the signer has exhausted all validation attempts.');
         }
 
         // Fallback: include server-provided message if available
