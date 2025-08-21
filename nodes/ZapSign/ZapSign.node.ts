@@ -2987,9 +2987,22 @@ export class ZapSign implements INodeType {
 						this.logger.debug(`Update Template Form Request - Body: ${JSON.stringify(body)}`);
 
 						// According to ZapSign API docs: https://docs.zapsign.com.br/modelos/create-template-docx/update-form
+						// Try different endpoint patterns to find the correct one
+						const endpointPatterns = [
+							`${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/update-form/`,
+							`${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/update-form`,
+							`${baseUrl}/api/v1/templates/update-form/${encodeURIComponent(templateToken)}/`,
+							`${baseUrl}/api/v1/templates/update-form/${encodeURIComponent(templateToken)}`,
+						];
+
+						this.logger.debug(`Update Template Form Request - Trying endpoint patterns:`);
+						endpointPatterns.forEach((pattern, index) => {
+							this.logger.debug(`  Pattern ${index + 1}: ${pattern}`);
+						});
+
 						const options: IRequestOptions = {
 							method: 'PUT',
-							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/update-form/`,
+							url: endpointPatterns[0], // Start with the first pattern
 							body,
 						};
 
@@ -3001,6 +3014,26 @@ export class ZapSign implements INodeType {
 						} catch (error) {
 							this.logger.error(`Update Template Form Error: ${error.message}`);
 							this.logger.error(`Update Template Form Request Options: ${JSON.stringify(options)}`);
+							
+							// If it's a "not found" error, try different HTTP methods
+							if (error.message.includes('not found') || error.message.includes('resource')) {
+								this.logger.debug(`Trying POST method instead of PUT...`);
+								const postOptions: IRequestOptions = {
+									method: 'POST',
+									url: options.url,
+									body,
+								};
+								
+								try {
+									const postResponse = await requestJson(this, postOptions);
+									this.logger.debug(`POST method succeeded!`);
+									pushResult(returnData, postResponse);
+									continue; // Continue to next iteration instead of return
+								} catch (postError) {
+									this.logger.error(`POST method also failed: ${postError.message}`);
+								}
+							}
+							
 							throw error;
 						}
 					}
