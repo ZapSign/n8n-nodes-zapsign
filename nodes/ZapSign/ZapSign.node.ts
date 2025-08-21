@@ -3033,6 +3033,11 @@ export class ZapSign implements INodeType {
 						const webhookUrl = this.getNodeParameter('webhookUrl', i) as string;
 						const events = this.getNodeParameter('events', i) as string[];
 
+						// Add debug logging
+						this.logger.debug(`Create Webhook Request - Webhook URL: ${webhookUrl}`);
+						this.logger.debug(`Create Webhook Request - Events: ${JSON.stringify(events)}`);
+						this.logger.debug(`Create Webhook Request - Base URL: ${baseUrl}`);
+
 						const body: IDataObject = {
 							url: webhookUrl,
 							events,
@@ -3044,12 +3049,25 @@ export class ZapSign implements INodeType {
 							body,
 						};
 
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
+						this.logger.debug(`Create Webhook Request - URL: ${options.url}`);
+						this.logger.debug(`Create Webhook Request - Body: ${JSON.stringify(options.body)}`);
+
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Create Webhook Error: ${error.message}`);
+							this.logger.error(`Create Webhook Request Options: ${JSON.stringify(options)}`);
+							throw error;
+						}
 
 					} else if (operation === 'getAll') {
 						// Get all webhooks
 						const limit = this.getNodeParameter('limit', i) as number;
+
+						// Add debug logging
+						this.logger.debug(`Get All Webhooks Request - Limit: ${limit}`);
+						this.logger.debug(`Get All Webhooks Request - Base URL: ${baseUrl}`);
 
 						const options: IRequestOptions = {
 							method: 'GET',
@@ -3059,25 +3077,45 @@ export class ZapSign implements INodeType {
 							},
 						};
 
-						const responseData = await requestJson(this, options);
+						this.logger.debug(`Get All Webhooks Request - URL: ${options.url}`);
 
-						if (Array.isArray(responseData)) {
-							pushResult(returnData, responseData as IDataObject[]);
-						} else {
-							pushResult(returnData, responseData as IDataObject);
+						try {
+							const responseData = await requestJson(this, options);
+
+							if (Array.isArray(responseData)) {
+								pushResult(returnData, responseData as IDataObject[]);
+							} else {
+								pushResult(returnData, responseData as IDataObject);
+							}
+						} catch (error) {
+							this.logger.error(`Get All Webhooks Error: ${error.message}`);
+							this.logger.error(`Get All Webhooks Request Options: ${JSON.stringify(options)}`);
+							throw error;
 						}
 
 					} else if (operation === 'delete') {
 						// Delete webhook
 						const webhookId = this.getNodeParameter('webhookId', i) as string;
 
+						// Add debug logging
+						this.logger.debug(`Delete Webhook Request - Webhook ID: ${webhookId}`);
+						this.logger.debug(`Delete Webhook Request - Base URL: ${baseUrl}`);
+
 						const options: IRequestOptions = {
 							method: 'DELETE',
 							url: `${baseUrl}/api/v1/webhooks/${webhookId}`,
 						};
 
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
+						this.logger.debug(`Delete Webhook Request - URL: ${options.url}`);
+
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Delete Webhook Error: ${error.message}`);
+							this.logger.error(`Delete Webhook Request Options: ${JSON.stringify(options)}`);
+							throw error;
+						}
 					}
 				}
 
