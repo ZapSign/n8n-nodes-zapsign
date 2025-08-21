@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-zapsign",
-  "version": "1.0.59",
+  "version": "1.0.60",
   "description": "N8N node for ZapSign digital signature API integration",
   "keywords": [
     "n8n-community-node-package"

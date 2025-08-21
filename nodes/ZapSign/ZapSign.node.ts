@@ -2207,8 +2207,8 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/docs/${documentToken}/refuse/`,
-							body: { rejected_reason: rejectedReason },
+							url: `${baseUrl}/api/v1/refuse`,
+							body: { doc_token: documentToken, rejected_reason: rejectedReason },
 							headers: {
 								'Content-Type': 'application/json',
 								'User-Agent': 'n8n-nodes-zapsign/1.0',
@@ -2425,8 +2425,8 @@ export class ZapSign implements INodeType {
 
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/docs/${documentToken}/refuse/`,
-							body: { rejected_reason: rejectedReason },
+							url: `${baseUrl}/api/v1/refuse`,
+							body: { doc_token: documentToken, rejected_reason: rejectedReason },
 							headers: {
 								'Content-Type': 'application/json',
 								'User-Agent': 'n8n-nodes-zapsign/1.0',
