@@ -957,19 +957,21 @@ export class ZapSign implements INodeType {
 				},
 				placeholder: 'Add Document Token',
 				default: {},
+				required: true,
 				displayOptions: {
 					show: {
 						resource: ['document'],
 						operation: ['reorderEnvelope'],
 					},
 				},
-				description: 'List of document tokens in the desired display order',
+				description: 'List of document tokens in the desired display order. Add at least one document token to specify the order.',
 				options: [
 					{
 						displayName: 'Document Token',
 						name: 'documentToken',
 						type: 'string',
 						default: '',
+						required: true,
 						description: 'Token of the document to include in the envelope order',
 					},
 				],
