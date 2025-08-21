@@ -40,6 +40,13 @@ export async function requestJson(
         const zapMessage: string | undefined = parsed?.message || parsed?.detail || parsed?.error;
 
         // Improve messaging for common ZapSign 4xx errors
+        if (status === 401) {
+            if (zapMessage) {
+                throw new Error(`Unauthorized (401): ${zapMessage}. Check if your API token has permission to view this document's data.`);
+            }
+            throw new Error('Unauthorized (401): Check your API token and ensure it has permission to view this document\'s activity history.');
+        }
+
         if (status === 403) {
             if (zapCode === 'document_already_signed') {
                 throw new Error('Document already signed: cancellation is not allowed (403: document_already_signed).');
@@ -54,6 +61,13 @@ export async function requestJson(
                 throw new Error(`Forbidden: ${zapMessage}`);
             }
             throw new Error('Forbidden (403): Check credentials, permissions, or document state.');
+        }
+
+        if (status === 404) {
+            if (zapMessage) {
+                throw new Error(`Not Found (404): ${zapMessage}. Verify the document token is correct.`);
+            }
+            throw new Error('Not Found (404): Document not found. Verify the document token is correct.');
         }
 
         if (status === 400 && zapMessage) {
