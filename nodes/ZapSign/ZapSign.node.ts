@@ -1567,29 +1567,6 @@ export class ZapSign implements INodeType {
 			},
 			// Update Template Form fields
 			{
-				displayName: 'Template Name',
-				name: 'templateName',
-				type: 'string',
-				default: '',
-				required: true,
-				displayOptions: { show: { resource: ['template'], operation: ['updateTemplateForm'] } },
-				description: 'Name of the template (max 255 characters)',
-			},
-			{
-				displayName: 'Template Language',
-				name: 'templateLang',
-				type: 'options',
-				options: [
-					{ name: 'Portuguese (Brazil)', value: 'pt-br' },
-					{ name: 'English', value: 'en' },
-					{ name: 'Spanish', value: 'es' },
-				],
-				default: 'pt-br',
-				required: true,
-				displayOptions: { show: { resource: ['template'], operation: ['updateTemplateForm'] } },
-				description: 'Language for the template interface',
-			},
-			{
 				displayName: 'Inputs',
 				name: 'templateFormInputs',
 				type: 'fixedCollection',
@@ -2982,7 +2959,7 @@ export class ZapSign implements INodeType {
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
 					} else if (operation === 'updateTemplateForm') {
-						// Update template form (inputs) - following ZapSign API docs exactly
+						// Update template form (inputs)
 						const templateToken = this.getNodeParameter('templateToken', i) as string;
 						const inputsCollection = this.getNodeParameter('templateFormInputs', i) as IDataObject;
 						const inputs = (inputsCollection?.input as IDataObject[]) || [];
@@ -2992,15 +2969,9 @@ export class ZapSign implements INodeType {
 						this.logger.debug(`Update Template Form Request - Inputs Collection: ${JSON.stringify(inputsCollection)}`);
 						this.logger.debug(`Update Template Form Request - Base URL: ${baseUrl}`);
 
-						// According to ZapSign API docs: https://docs.zapsign.com.br/modelos/atualizar-modelo
-						// The API requires a complete template update body, not just inputs
-						const body: IDataObject = {
-							// Required fields according to API docs
-							name: this.getNodeParameter('templateName', i, '') as string || 'Template',
-							lang: this.getNodeParameter('templateLang', i, 'pt-br') as string,
-							
-							// Include inputs if provided
-							inputs: Array.isArray(inputs) && inputs.length > 0 ? inputs.map((inp) => ({
+						const body: IDataObject = {};
+						if (Array.isArray(inputs) && inputs.length > 0) {
+							body.inputs = inputs.map((inp) => ({
 								variable: (inp.variable as string) || '',
 								label: (inp.label as string) || '',
 								help_text: (inp.help_text as string) || '',
@@ -3008,14 +2979,15 @@ export class ZapSign implements INodeType {
 								options: (inp.options as string) || '',
 								required: Boolean(inp.required),
 								order: (inp.order as number) ?? 1,
-							})).filter((e) => e.variable) : [],
-						};
+							})).filter((e) => e.variable);
+						}
 
 						this.logger.debug(`Update Template Form Request - Body: ${JSON.stringify(body)}`);
 
+						// According to ZapSign API docs: https://docs.zapsign.com.br/modelos/create-template-docx/update-form
 						const options: IRequestOptions = {
 							method: 'PUT',
-							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/`,
+							url: `${baseUrl}/api/v1/templates/${encodeURIComponent(templateToken)}/update-form/`,
 							body,
 						};
 
