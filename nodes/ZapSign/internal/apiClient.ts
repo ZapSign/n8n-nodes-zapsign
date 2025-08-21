@@ -82,7 +82,9 @@ export async function requestJson(
             if (zapMessage) {
                 throw new Error(`Bad Request (400): ${zapMessage}. Check your parameters and ensure the signer has exhausted all validation attempts.`);
             }
-            throw new Error('Bad Request (400): Check your parameters. This endpoint only works when the signer has exhausted all validation attempts.');
+            // Enhanced 400 error with more context for debugging
+            const context = `Status: 400 Bad Request | Code: ${zapCode || 'none'} | Message: ${zapMessage || 'none'} | Raw Response: ${JSON.stringify(parsed || {})}`;
+            throw new Error(`Bad Request (400): Check your parameters. This endpoint only works when the signer has exhausted all validation attempts. ${context}`);
         }
 
         // Fallback: include server-provided message if available

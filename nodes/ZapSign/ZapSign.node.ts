@@ -2786,14 +2786,23 @@ export class ZapSign implements INodeType {
 							}
 							
 							// Log the request details for debugging
-							this.logger.debug(`Reset Attempts Request - URL: ${baseUrl}/api/v1/reset-auth-attempts/${encodeURIComponent(signerToken)}/`);
+							this.logger.debug(`Reset Attempts Request - URL: ${baseUrl}/api/v1/reset-auth-attempts/${encodeURIComponent(signerToken)}`);
+							this.logger.debug(`Reset Attempts Request - Signer Token: ${signerToken}`);
+							this.logger.debug(`Reset Attempts Request - Base URL: ${baseUrl}`);
 							
 							const options: IRequestOptions = {
 								method: 'PUT',
-								url: `${baseUrl}/api/v1/reset-auth-attempts/${encodeURIComponent(signerToken)}/`,
+								url: `${baseUrl}/api/v1/reset-auth-attempts/${encodeURIComponent(signerToken)}`,
 							};
-							const responseData = await requestJson(this, options);
-							pushResult(returnData, responseData);
+							
+							try {
+								const responseData = await requestJson(this, options);
+								pushResult(returnData, responseData);
+							} catch (error) {
+								this.logger.error(`Reset Attempts Error: ${error.message}`);
+								this.logger.error(`Reset Attempts Request Options: ${JSON.stringify(options)}`);
+								throw error;
+							}
 						},
 					};
 
