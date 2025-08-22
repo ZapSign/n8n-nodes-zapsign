@@ -83,12 +83,25 @@ export async function requestJson(
             if (zapCode === 'signer_has_attempts') {
                 throw new Error(`Bad Request (400): ${zapMessage || 'Signer still has validation attempts available'}. This endpoint only works when the signer has exhausted all validation attempts.`);
             }
+            
+            // Enhanced 400 error handling for template document creation and other operations
             if (zapMessage) {
-                throw new Error(`Bad Request (400): ${zapMessage}. Check your parameters and ensure the signer has exhausted all validation attempts.`);
+                // Check for common template-related errors
+                if (zapMessage.includes('template') || zapMessage.includes('modelo')) {
+                    throw new Error(`Bad Request (400): ${zapMessage}. Check your template token and ensure it's valid.`);
+                }
+                if (zapMessage.includes('signer') || zapMessage.includes('signatário')) {
+                    throw new Error(`Bad Request (400): ${zapMessage}. Check your signer information and ensure required fields are provided.`);
+                }
+                if (zapMessage.includes('data') || zapMessage.includes('variável')) {
+                    throw new Error(`Bad Request (400): ${zapMessage}. Check your template variables and ensure they match the template format.`);
+                }
+                throw new Error(`Bad Request (400): ${zapMessage}. Check your parameters and ensure all required fields are provided.`);
             }
+            
             // Enhanced 400 error with more context for debugging
             const context = `Status: 400 Bad Request | Code: ${zapCode || 'none'} | Message: ${zapMessage || 'none'} | Raw Response: ${JSON.stringify(parsed || {})}`;
-            throw new Error(`Bad Request (400): Check your parameters. This endpoint only works when the signer has exhausted all validation attempts. ${context}`);
+            throw new Error(`Bad Request (400): Check your parameters. ${context}`);
         }
 
         // Fallback: include server-provided message if available

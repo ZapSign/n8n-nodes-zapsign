@@ -1,0 +1,3580 @@
+openapi: 3.0.3
+info:
+  title: ZapSign API
+  description: |
+    Complete ZapSign API specification for digital signature operations.
+    
+    This API allows you to manage digital signatures, documents, templates, signers, background checks, partnerships, timestamps, and webhooks.
+    
+    ## Authentication
+    All endpoints require Bearer token authentication using your ZapSign API token.
+    
+    ## Environments
+    - **Production**: `https://api.zapsign.com.br`
+    - **Sandbox**: `https://sandbox.api.zapsign.com.br`
+    
+    ## Rate Limits
+    Please refer to the official ZapSign documentation for current rate limits.
+    
+  version: 1.0.108
+  contact:
+    name: ZapSign API Support
+    url: https://docs.zapsign.com.br
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.zapsign.com.br
+    description: Production server
+  - url: https://sandbox.api.zapsign.com.br
+    description: Sandbox server for testing
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Bearer token authentication. Use your ZapSign API token.
+        Example: `Bearer your-api-token-here`
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        detail:
+          type: string
+          description: Detailed error information
+        message:
+          type: string
+          description: Human-readable error message
+        data:
+          type: object
+          description: Additional error data
+      example:
+        error: "Bad request"
+        detail: "Missing required field: name"
+        message: "Please check your parameters"
+
+    Document:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Unique document token
+        name:
+          type: string
+          description: Document name
+        status:
+          type: string
+          enum: [created, signed, cancelled, expired, refused]
+          description: Document status
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration timestamp
+        signed_at:
+          type: string
+          format: date-time
+          description: Signature completion timestamp
+        signers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Signer'
+        pdf_url:
+          type: string
+          description: URL to download the PDF document
+      example:
+        token: "a8561033-4e11-473e-b541-0b66de223085"
+        name: "Contract Agreement"
+        status: "created"
+        created_at: "2025-01-21T20:00:00Z"
+        signers: []
+
+    Signer:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Unique signer token
+        name:
+          type: string
+          description: Signer full name
+        email:
+          type: string
+          format: email
+          description: Signer email address
+        phone_country:
+          type: string
+          description: Phone country code (e.g., 55 for Brazil)
+        phone_number:
+          type: string
+          description: Phone number
+        status:
+          type: string
+          enum: [pending, signed, refused]
+          description: Signer status
+        auth_mode:
+          type: string
+          enum: [email, sms, whatsapp, certificado_digital, reconhecimento_facial]
+          description: Authentication method
+        created_at:
+          type: string
+          format: date-time
+        signed_at:
+          type: string
+          format: date-time
+      example:
+        token: "signer-token-123"
+        name: "John Doe"
+        email: "john@example.com"
+        phone_country: "55"
+        phone_number: "11999999999"
+        status: "pending"
+        auth_mode: "email"
+
+    Template:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Template token
+        name:
+          type: string
+          description: Template name
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      example:
+        token: "template-token-123"
+        name: "Standard Contract Template"
+
+    BackgroundCheck:
+      type: object
+      properties:
+        check_id:
+          type: string
+          description: Background check ID
+        status:
+          type: string
+          enum: [not_started, in_progress, delayed, error, completed]
+          description: Check status
+        type:
+          type: string
+          enum: [person, company]
+          description: Type of background check
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      example:
+        check_id: "CHKa006fc1af2e487ba060e0b657eada6c7"
+        status: "completed"
+        type: "person"
+
+    PartnerAccount:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Account ID
+        name:
+          type: string
+          description: Company name
+        api_token:
+          type: string
+          description: API token for the new account
+        created_at:
+          type: string
+          format: date-time
+        credits_balance:
+          type: integer
+          description: Credits balance
+        lang:
+          type: string
+          enum: [pt-br, es, en]
+          description: Account language
+        timezone:
+          type: string
+          description: Account timezone
+      example:
+        id: 549
+        name: "Client Company"
+        api_token: "bc9b2a85-52e1-4f03-9119-7614def33c3d"
+        created_at: "2025-01-21T20:00:00Z"
+        credits_balance: 0
+        lang: "en"
+        timezone: "America/Sao_Paulo"
+
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Webhook ID
+        url:
+          type: string
+          format: uri
+          description: Webhook URL
+        events:
+          type: array
+          items:
+            type: string
+          description: Event types to listen for
+        created_at:
+          type: string
+          format: date-time
+      example:
+        id: "webhook-123"
+        url: "https://your-app.com/webhook"
+        events: ["document.signed", "document.created"]
+
+paths:
+  # Document Operations
+  /api/v1/docs/:
+    post:
+      tags:
+        - Documents
+      summary: Create Document
+      description: |
+        Create a new document for signature.
+        
+        Supports multiple input methods:
+        - File upload (binary data)
+        - Base64 encoded content
+        - Public URL to document
+        - Markdown text (converted to PDF)
+      operationId: createDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - signers
+              properties:
+                name:
+                  type: string
+                  description: Document name
+                  example: "Contract Agreement"
+                file:
+                  type: string
+                  description: Document file content (base64 encoded)
+                  example: "JVBERi0xLjQKJcOkw7zDtsO..."
+                base64:
+                  type: string
+                  description: Base64 encoded document content
+                  example: "JVBERi0xLjQKJcOkw7zDtsO..."
+                url_pdf:
+                  type: string
+                  format: uri
+                  description: Public URL to download document
+                  example: "https://pdfobject.com/pdf/sample.pdf"
+                markdown:
+                  type: string
+                  description: Markdown content to convert to PDF
+                  example: "# Contract Agreement\n\nThis is a sample contract..."
+                signers:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - email
+                    properties:
+                      name:
+                        type: string
+                        example: "John Doe"
+                      email:
+                        type: string
+                        format: email
+                        example: "john@example.com"
+                      phone_country:
+                        type: string
+                        example: "55"
+                      phone_number:
+                        type: string
+                        example: "11999999999"
+                      auth_mode:
+                        type: string
+                        enum: [email, sms, whatsapp, certificado_digital, reconhecimento_facial]
+                        example: "email"
+                      lock_name:
+                        type: boolean
+                        example: false
+                      lock_email:
+                        type: boolean
+                        example: false
+                      lock_phone:
+                        type: boolean
+                        example: false
+                folder_path:
+                  type: string
+                  description: Folder path for organization
+                  example: "/Contracts/2025"
+                date_limit_to_sign:
+                  type: string
+                  format: date-time
+                  description: Expiration date for signatures
+                  example: "2025-02-21T20:00:00Z"
+                skip_email:
+                  type: boolean
+                  description: Skip sending email notifications
+                  default: false
+                external_id:
+                  type: string
+                  description: Your external reference ID
+                  example: "contract-123"
+                brand_name:
+                  type: string
+                  description: Custom brand name
+                  example: "My Company"
+                lang:
+                  type: string
+                  enum: [pt-br, en, es]
+                  description: Document language
+                  default: "pt-br"
+                observer_emails:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+                  description: Observer email addresses
+                  example: ["observer@example.com"]
+                metadata:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key:
+                        type: string
+                        example: "contract_type"
+                      value:
+                        type: string
+                        example: "standard"
+                  description: Custom metadata key-value pairs
+      responses:
+        '200':
+          description: Document created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Payment required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - Documents
+      summary: List Documents
+      description: Retrieve a list of documents with optional filtering
+      operationId: listDocuments
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of documents to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of documents to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: status
+          in: query
+          description: Filter by document status
+          schema:
+            type: string
+            enum: [created, signed, cancelled, expired, refused]
+        - name: created_after
+          in: query
+          description: Filter documents created after this date
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          description: Filter documents created before this date
+          schema:
+            type: string
+            format: date-time
+        - name: folder_path
+          in: query
+          description: Filter by folder path
+          schema:
+            type: string
+        - name: external_id
+          in: query
+          description: Filter by external reference ID
+          schema:
+            type: string
+        - name: signer_email
+          in: query
+          description: Filter by signer email
+          schema:
+            type: string
+            format: email
+        - name: auth_mode
+          in: query
+          description: Filter by authentication method
+          schema:
+            type: string
+            enum: [email, sms, whatsapp, certificado_digital, reconhecimento_facial]
+        - name: brand_name
+          in: query
+          description: Filter by brand name
+          schema:
+            type: string
+        - name: lang
+          in: query
+          description: Filter by document language
+          schema:
+            type: string
+            enum: [pt-br, en, es]
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  count:
+                    type: integer
+                    description: Total number of documents
+                  next:
+                    type: string
+                    nullable: true
+                    description: URL for next page
+                  previous:
+                    type: string
+                    nullable: true
+                    description: URL for previous page
+
+  /api/v1/docs/{documentToken}/:
+    get:
+      tags:
+        - Documents
+      summary: Get Document
+      description: Retrieve a specific document by token
+      operationId: getDocument
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Documents
+      summary: Update Document
+      description: Update document properties while in progress
+      operationId: updateDocument
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newDocumentName:
+                  type: string
+                  description: New document name
+                  example: "Updated Contract Agreement"
+                newDateLimitToSign:
+                  type: string
+                  format: date-time
+                  description: New expiration date
+                  example: "2025-02-21T20:00:00Z"
+                newFolderPath:
+                  type: string
+                  description: New folder path
+                  example: "/Contracts/2025"
+                newFolderToken:
+                  type: string
+                  description: New folder token
+                  example: "folder-token-123"
+                extraDocsToRename:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: Document token to rename
+                        example: "doc-token-123"
+                      newName:
+                        type: string
+                        description: New name for the document
+                        example: "Updated Attachment"
+                  description: Array of documents to rename
+      responses:
+        '200':
+          description: Document updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: Bad request - invalid update data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Documents
+      summary: Delete Document
+      description: Soft delete a document
+      operationId: deleteDocument
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document deleted successfully
+        '404':
+          description: Document not found
+
+  /api/v1/docs/{documentToken}/send/:
+    post:
+      tags:
+        - Documents
+      summary: Send Document
+      description: Send the document to signers for signature
+      operationId: sendDocument
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: Custom message to include with the document
+                  example: "Please review and sign this contract"
+                subject:
+                  type: string
+                  description: Custom email subject
+                  example: "Contract for your signature"
+                skip_email:
+                  type: boolean
+                  description: Skip sending email notifications
+                  default: false
+      responses:
+        '200':
+          description: Document sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Document sent successfully"
+                  sent_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+        '400':
+          description: Bad request - document cannot be sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/docs/{documentToken}/download/:
+    get:
+      tags:
+        - Documents
+      summary: Download Document
+      description: Download the document in its current state (original or signed)
+      operationId: downloadDocument
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+        - name: format
+          in: query
+          description: Download format
+          schema:
+            type: string
+            enum: [pdf, original]
+            default: pdf
+        - name: version
+          in: query
+          description: Document version to download
+          schema:
+            type: string
+            enum: [original, signed]
+            default: signed
+      responses:
+        '200':
+          description: Document file
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url:
+                    type: string
+                    format: uri
+                    description: URL to download the document
+                    example: "https://api.zapsign.com.br/api/v1/docs/a8561033-4e11-473e-b541-0b66de223085/download/"
+                  expires_at:
+                    type: string
+                    format: date-time
+                    description: When the download URL expires
+                    example: "2025-01-22T20:00:00Z"
+                  file_size:
+                    type: integer
+                    description: File size in bytes
+                    example: 1048576
+                  format:
+                    type: string
+                    description: Document format
+                    example: "pdf"
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/docs/{documentToken}/cancel/:
+    post:
+      tags:
+        - Documents
+      summary: Cancel Document
+      description: Cancel a document (same as refuse)
+      operationId: cancelDocument
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document cancelled successfully
+        '400':
+          description: Bad request - document cannot be cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/refuse/:
+    post:
+      tags:
+        - Documents
+      summary: Refuse Document
+      description: |
+        Refuse/reject a document. 
+        
+        Requirements:
+        - Document status must be "Em andamento" (In progress)
+        - Document must have been created with `allow_refuse_signature: true`
+      operationId: refuseDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - doc_token
+                - rejected_reason
+              properties:
+                doc_token:
+                  type: string
+                  description: Document token
+                  example: "a8561033-4e11-473e-b541-0b66de223085"
+                rejected_reason:
+                  type: string
+                  description: Reason for rejection
+                  example: "Document contains errors"
+      responses:
+        '200':
+          description: Document refused successfully
+        '400':
+          description: Bad request - document cannot be refused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/docs/{documentToken}/reprocess-doc/:
+    post:
+      tags:
+        - Documents
+      summary: Reprocess Document and Webhooks
+      description: |
+        Reprocess a signed document and/or resend webhooks.
+        
+        Useful when:
+        - Document integrity issues
+        - Webhook delivery failures
+        - Need to regenerate final document
+      operationId: reprocessDocument
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                send_webhook:
+                  type: boolean
+                  description: Resend the webhook for this document
+                  default: false
+                  example: true
+                resign_doc:
+                  type: boolean
+                  description: Reprocess the signed document by creating a new PDF
+                  default: false
+                  example: false
+      responses:
+        '200':
+          description: Document reprocessing started (asynchronous process)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Document successfully reprocessed"
+                  status:
+                    type: string
+                    example: "processing"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+        '404':
+          description: Document not found
+
+  /api/v1/docs/{documentToken}/document-display-order/:
+    post:
+      tags:
+        - Documents
+      summary: Reorder Documents in Envelope
+      description: Change the display order of documents within an envelope
+      operationId: reorderDocuments
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Main document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - documents_order
+              properties:
+                documents_order:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of document tokens in desired order
+                  example: ["doc-token-1", "doc-token-2", "doc-token-3"]
+      responses:
+        '200':
+          description: Documents reordered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Documents reordered successfully"
+                  document_token:
+                    type: string
+                    example: "a8561033-4e11-473e-b541-0b66de223085"
+                  reordered_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  /api/v1/docs/{documentToken}/extra-docs/:
+    post:
+      tags:
+        - Documents  
+      summary: Add Extra Document
+      description: Add an additional document/attachment to an existing envelope
+      operationId: addExtraDocument
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Main document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Extra document name
+                  example: "Contract Attachment"
+                file:
+                  type: string
+                  description: Document file content (base64 encoded)
+                  example: "JVBERi0xLjQKJcOkw7zDtsO..."
+                base64:
+                  type: string
+                  description: Base64 encoded content
+                  example: "JVBERi0xLjQKJcOkw7zDtsO..."
+                url_pdf:
+                  type: string
+                  format: uri
+                  description: Public URL to document
+                  example: "https://pdfobject.com/pdf/sample.pdf"
+      responses:
+        '200':
+          description: Extra document added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Extra document added successfully"
+                  document_token:
+                    type: string
+                    description: Token of the added extra document
+                    example: "extra-doc-token-123"
+                  added_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+        '400':
+          description: Bad request - invalid document data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Main document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/docs/{documentToken}/extra-docs/template/:
+    post:
+      tags:
+        - Documents
+      summary: Add Extra Document from Template
+      description: Add an extra document using a template
+      operationId: addExtraDocumentFromTemplate
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Main document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template_id
+                - document_name
+              properties:
+                template_id:
+                  type: string
+                  description: Template token/ID
+                document_name:
+                  type: string
+                  description: Name for the generated document
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      de:
+                        type: string
+                        description: Template variable name
+                      para:
+                        type: string
+                        description: Replacement value
+                  description: Template variable replacements
+      responses:
+        '200':
+          description: Extra document from template added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Extra document from template added successfully"
+                  document_token:
+                    type: string
+                    example: "extra-doc-token-123"
+                  template_token:
+                    type: string
+                    example: "template-token-123"
+                  added_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  /api/v1/docs/{documentToken}/activity/:
+    get:
+      tags:
+        - Documents
+      summary: Get Document Activity History
+      description: Retrieve the activity history/audit trail for a document
+      operationId: getDocumentActivity
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document activity history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activities:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        action:
+                          type: string
+                          description: Action performed
+                          example: "document_created"
+                        timestamp:
+                          type: string
+                          format: date-time
+                          example: "2025-01-21T20:00:00Z"
+                        user:
+                          type: string
+                          description: User who performed the action
+                          example: "john@example.com"
+                        details:
+                          type: object
+                          description: Additional action details
+                          example:
+                            ip_address: "192.168.1.1"
+                            user_agent: "Mozilla/5.0..."
+                  count:
+                    type: integer
+                    description: Total number of activities
+                    example: 5
+
+  /api/v1/docs/{documentToken}/signatures/:
+    post:
+      tags:
+        - Documents
+      summary: Place Signatures
+      description: Position signatures and rubricas by coordinates on the document
+      operationId: placeSignatures
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - signatures
+              properties:
+                signatures:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - signer_token
+                      - page
+                      - relative_position_left
+                      - relative_position_bottom
+                      - relative_size_x
+                      - relative_size_y
+                    properties:
+                      signer_token:
+                        type: string
+                        description: Signer token
+                      type:
+                        type: string
+                        enum: [signature, rubrica]
+                        default: signature
+                      page:
+                        type: integer
+                        description: Page number (0-based)
+                        minimum: 0
+                      relative_position_left:
+                        type: number
+                        description: Left position (percentage from left edge)
+                        minimum: 0
+                        maximum: 100
+                      relative_position_bottom:
+                        type: number
+                        description: Bottom position (percentage from bottom edge)
+                        minimum: 0
+                        maximum: 100
+                      relative_size_x:
+                        type: number
+                        description: Width (percentage of page width)
+                        minimum: 0
+                        maximum: 100
+                      relative_size_y:
+                        type: number
+                        description: Height (percentage of page height)
+                        minimum: 0
+                        maximum: 100
+      responses:
+        '200':
+          description: Signatures placed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Signatures placed successfully"
+                  document_token:
+                    type: string
+                    example: "a8561033-4e11-473e-b541-0b66de223085"
+                  signatures_count:
+                    type: integer
+                    example: 2
+                  placed_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  /api/v1/docs/{documentToken}/validate-signatures/:
+    post:
+      tags:
+        - Documents
+      summary: Validate Signatures
+      description: Validate the cryptographic integrity of signatures in a signed PDF
+      operationId: validateSignatures
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Signature validation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    description: Whether all signatures are valid
+                  signatures:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        signer:
+                          type: string
+                          description: Signer identifier
+                        valid:
+                          type: boolean
+                          description: Whether this signature is valid
+                        timestamp:
+                          type: string
+                          format: date-time
+                          description: When the signature was applied
+                        certificate_info:
+                          type: object
+                          description: Digital certificate information
+                  validation_date:
+                    type: string
+                  format: date-time
+                  description: When validation was performed
+        '400':
+          description: Bad request - document not signed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # OneClick Document Operations
+  /api/v1/docs/one-click/:
+    post:
+      tags:
+        - Documents
+      summary: Create OneClick Document
+      description: |
+        Create a OneClick document for simple consent workflows.
+        
+        OneClick documents are designed for quick acceptance/consent scenarios
+        where users just need to click to agree to terms.
+      operationId: createOneClickDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - signers
+              properties:
+                name:
+                  type: string
+                  description: Document name
+                  example: "Terms of Service Agreement"
+                file:
+                  type: string
+                  description: Document file content (base64 encoded)
+                  example: "JVBERi0xLjQKJcOkw7zDtsO..."
+                base64:
+                  type: string
+                  description: Base64 encoded document content
+                  example: "JVBERi0xLjQKJcOkw7zDtsO..."
+                url_pdf:
+                  type: string
+                  format: uri
+                  description: Public URL to download document
+                  example: "https://pdfobject.com/pdf/sample.pdf"
+                signers:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        example: "John Doe"
+                      email:
+                        type: string
+                        format: email
+                        example: "john@example.com"
+                      phone_country:
+                        type: string
+                        example: "55"
+                      phone_number:
+                        type: string
+                        example: "11999999999"
+                      send_automatic_email:
+                        type: boolean
+                        default: true
+                      send_automatic_whatsapp:
+                        type: boolean
+                        default: false
+                external_id:
+                  type: string
+                  description: Your external reference ID
+                  example: "terms-123"
+                lang:
+                  type: string
+                  enum: [pt-br, en, es]
+                  default: "pt-br"
+      responses:
+        '200':
+          description: OneClick document created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          description: Bad request - invalid document data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid API token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Payment required - plan limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Template Operations
+  /api/v1/templates/:
+    get:
+      tags:
+        - Templates
+      summary: List Templates
+      description: Retrieve a list of available templates
+      operationId: listTemplates
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of templates to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of templates to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: created_after
+          in: query
+          description: Filter templates created after this date
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          description: Filter templates created before this date
+          schema:
+            type: string
+            format: date-time
+        - name: external_id
+          in: query
+          description: Filter by external reference ID
+          schema:
+            type: string
+        - name: template_name
+          in: query
+          description: Filter by template name (partial match)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Template'
+                  count:
+                    type: integer
+                    description: Total number of templates
+                  next:
+                    type: string
+                    nullable: true
+                    description: URL for next page
+                  previous:
+                    type: string
+                    nullable: true
+                    description: URL for previous page
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Templates
+      summary: Create Template (DOCX)
+      description: Create a new template from a DOCX file
+      operationId: createTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - file
+              properties:
+                name:
+                  type: string
+                  description: Template name
+                  example: "Contract Template"
+                file:
+                  type: string
+                  description: DOCX template file content (base64 encoded)
+                  example: "UEsDBBQAAAAIAA..."
+                external_id:
+                  type: string
+                  description: Your external reference ID
+                  example: "template-ref-123"
+      responses:
+        '200':
+          description: Template created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '400':
+          description: Bad request - invalid template data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/templates/{templateToken}/:
+    get:
+      tags:
+        - Templates
+      summary: Get Template
+      description: Retrieve a specific template by token
+      operationId: getTemplate
+      parameters:
+        - name: templateToken
+          in: path
+          required: true
+          description: Template token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '401':
+          description: Unauthorized - invalid API token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Templates
+      summary: Update Template
+      description: Update template properties
+      operationId: updateTemplate
+      parameters:
+        - name: templateToken
+          in: path
+          required: true
+          description: Template token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: New template name
+      responses:
+        '200':
+          description: Template updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Template updated successfully"
+                  template_token:
+                    type: string
+                    example: "template-token-123"
+                  updated_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+        '400':
+          description: Bad request - invalid template data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid API token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Templates
+      summary: Delete Template
+      description: Delete a template
+      operationId: deleteTemplate
+      parameters:
+        - name: templateToken
+          in: path
+          required: true
+          description: Template token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Template deleted successfully"
+                  template_token:
+                    type: string
+                    example: "template-token-123"
+                  deleted_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+        '401':
+          description: Unauthorized - invalid API token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/templates/{templateToken}/create-doc/:
+    post:
+      tags:
+        - Templates
+      summary: Create Document from Template
+      description: |
+        Create a new document using a template.
+        
+        Templates allow you to create standardized documents with variable placeholders
+        that get replaced with actual values during document generation.
+      operationId: createDocumentFromTemplate
+      parameters:
+        - name: templateToken
+          in: path
+          required: true
+          description: Template token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template_id
+                - signer_name
+                - document_name
+              properties:
+                template_id:
+                  type: string
+                  description: Template token (same as path parameter)
+                  example: "template-token-123"
+                signer_name:
+                  type: string
+                  description: Primary signer name
+                  example: "John Doe"
+                signer_email:
+                  type: string
+                  format: email
+                  description: Primary signer email
+                  example: "john@example.com"
+                signer_phone_country:
+                  type: string
+                  description: Phone country code
+                  example: "55"
+                signer_phone_number:
+                  type: string
+                  description: Phone number
+                  example: "11999999999"
+                signer_auth_mode:
+                  type: string
+                  enum: [email, sms, whatsapp, certificado_digital, reconhecimento_facial]
+                  example: "email"
+                document_name:
+                  type: string
+                  description: Name for the generated document
+                  example: "Contract for John Doe"
+                data:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      de:
+                        type: string
+                        description: Template variable name
+                        example: "{{client_name}}"
+                      para:
+                        type: string
+                        description: Replacement value
+                        example: "John Doe"
+                  description: Template variable replacements
+                folder_path:
+                  type: string
+                  description: Folder path for organization
+                external_id:
+                  type: string
+                  description: Your external reference ID
+                lang:
+                  type: string
+                  enum: [pt-br, en, es]
+                  default: "pt-br"
+                disable_signer_emails:
+                  type: boolean
+                  default: false
+                metadata:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key:
+                        type: string
+                      value:
+                        type: string
+                  description: Custom metadata
+      responses:
+        '200':
+          description: Document created from template successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+
+  /api/v1/templates/{templateToken}/form/:
+    put:
+      tags:
+        - Templates
+      summary: Update Template Form
+      description: Update form inputs/variables for a template
+      operationId: updateTemplateForm
+      parameters:
+        - name: templateToken
+          in: path
+          required: true
+          description: Template token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - form_inputs
+              properties:
+                form_inputs:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - type
+                    properties:
+                      name:
+                        type: string
+                        description: Input field name
+                        example: "client_name"
+                      type:
+                        type: string
+                        enum: [text, number, date, select]
+                        description: Input field type
+                        example: "text"
+                      required:
+                        type: boolean
+                        description: Whether field is required
+                        default: false
+                        example: true
+                      options:
+                        type: array
+                        items:
+                          type: string
+                        description: Options for select fields
+                        example: ["Option 1", "Option 2"]
+                  description: Array of form input definitions
+                  example:
+                    - name: "client_name"
+                      type: "text"
+                      required: true
+                    - name: "contract_type"
+                      type: "select"
+                      required: true
+                      options: ["Standard", "Premium", "Enterprise"]
+      responses:
+        '200':
+          description: Template form updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Template form updated successfully"
+                  template_token:
+                    type: string
+                    example: "template-token-123"
+        '400':
+          description: Bad request - invalid form data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Signer Operations
+  /api/v1/docs/{documentToken}/signers/:
+    get:
+      tags:
+        - Signers
+      summary: List Signers
+      description: Retrieve a list of all signers for a document
+      operationId: listSigners
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of signers to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of signers to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: status
+          in: query
+          description: Filter by signer status
+          schema:
+            type: string
+            enum: [pending, signed, refused]
+        - name: auth_mode
+          in: query
+          description: Filter by authentication method
+          schema:
+            type: string
+            enum: [email, sms, whatsapp, certificado_digital, reconhecimento_facial]
+        - name: signer_email
+          in: query
+          description: Filter by signer email
+          schema:
+            type: string
+            format: email
+        - name: signer_name
+          in: query
+          description: Filter by signer name (partial match)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of signers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Signer'
+                  count:
+                    type: integer
+                    description: Total number of signers
+                  next:
+                    type: string
+                    nullable: true
+                    description: URL for next page
+                  previous:
+                    type: string
+                    nullable: true
+                    description: URL for previous page
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/docs/{documentToken}/add-signer/:
+    post:
+      tags:
+        - Signers
+      summary: Add Signer
+      description: Add a new signer to an existing document
+      operationId: addSigner
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+              properties:
+                name:
+                  type: string
+                  description: Signer full name
+                  example: "Jane Doe"
+                email:
+                  type: string
+                  format: email
+                  description: Signer email address
+                  example: "jane@example.com"
+                phone_country:
+                  type: string
+                  description: Phone country code
+                  example: "55"
+                phone_number:
+                  type: string
+                  description: Phone number
+                  example: "11999999999"
+                auth_mode:
+                  type: string
+                  enum: [email, sms, whatsapp, certificado_digital, reconhecimento_facial]
+                  example: "email"
+                lock_name:
+                  type: boolean
+                  description: Lock signer name from editing
+                  default: false
+                lock_email:
+                  type: boolean
+                  description: Lock signer email from editing
+                  default: false
+                lock_phone:
+                  type: boolean
+                  description: Lock signer phone from editing
+                  default: false
+                cpf:
+                  type: string
+                  description: Brazilian CPF document
+                birthday:
+                  type: string
+                  format: date
+                  description: Signer birth date
+                send_automatic_email:
+                  type: boolean
+                  description: Send automatic email notification
+                  default: true
+                send_automatic_whatsapp:
+                  type: boolean
+                  description: Send automatic WhatsApp notification
+                  default: false
+      responses:
+        '200':
+          description: Signer added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signer:
+                    $ref: '#/components/schemas/Signer'
+                  message:
+                    type: string
+                    example: "Signer added successfully"
+                  added_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  /api/v1/docs/{documentToken}/signers/{signerToken}/:
+    get:
+      tags:
+        - Signers
+      summary: Get Signer Details
+      description: Retrieve details of a specific signer
+      operationId: getSignerDetails
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+        - name: signerToken
+          in: path
+          required: true
+          description: Signer token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Signer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Signer'
+
+    put:
+      tags:
+        - Signers
+      summary: Update Signer
+      description: Update signer information
+      operationId: updateSigner
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+        - name: signerToken
+          in: path
+          required: true
+          description: Signer token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Signer full name
+                email:
+                  type: string
+                  format: email
+                  description: Signer email address
+                phone_country:
+                  type: string
+                  description: Phone country code
+                phone_number:
+                  type: string
+                  description: Phone number
+                auth_mode:
+                  type: string
+                  enum: [email, sms, whatsapp, certificado_digital, reconhecimento_facial]
+      responses:
+        '200':
+          description: Signer updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  signer:
+                    $ref: '#/components/schemas/Signer'
+                  message:
+                    type: string
+                    example: "Signer updated successfully"
+                  updated_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+    delete:
+      tags:
+        - Signers
+      summary: Remove Signer
+      description: Remove a signer from a document
+      operationId: removeSigner
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+        - name: signerToken
+          in: path
+          required: true
+          description: Signer token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Signer removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Signer removed successfully"
+                  signer_token:
+                    type: string
+                    example: "signer-token-123"
+                  removed_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  /api/v1/docs/{documentToken}/signers/{signerToken}/reset-attempts/:
+    post:
+      tags:
+        - Signers
+      summary: Reset Validation Attempts
+      description: Reset a signer's validation attempts (for failed authentication)
+      operationId: resetSignerAttempts
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+        - name: signerToken
+          in: path
+          required: true
+          description: Signer token
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validation attempts reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Validation attempts reset successfully"
+                  signer_token:
+                    type: string
+                    example: "signer-token-123"
+                  reset_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  # Background Check Operations
+  /api/v1/checks/:
+    get:
+      tags:
+        - Background Checks
+      summary: List Background Checks
+      description: Retrieve a list of background checks
+      operationId: listBackgroundChecks
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of checks to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of checks to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: type
+          in: query
+          description: Filter by check type
+          schema:
+            type: string
+            enum: [person, company]
+        - name: status
+          in: query
+          description: Filter by check status
+          schema:
+            type: string
+            enum: [not_started, in_progress, delayed, error, completed]
+        - name: created_after
+          in: query
+          description: Filter checks created after this date
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          description: Filter checks created before this date
+          schema:
+            type: string
+            format: date-time
+        - name: custom_input
+          in: query
+          description: Filter by external reference ID
+          schema:
+            type: string
+        - name: national_id
+          in: query
+          description: Filter by national ID (for person checks)
+          schema:
+            type: string
+        - name: tax_id
+          in: query
+          description: Filter by tax ID (for company checks)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of background checks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BackgroundCheck'
+                  count:
+                    type: integer
+                    description: Total number of checks
+                  next:
+                    type: string
+                    nullable: true
+                    description: URL for next page
+                  previous:
+                    type: string
+                    nullable: true
+                    description: URL for previous page
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Background Checks
+      summary: Create Background Check
+      description: |
+        Create a background check for a person or company.
+        
+        Background checks help verify identity and check for any issues
+        in public records, credit history, and other databases.
+      operationId: createBackgroundCheck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_authorized
+                - type
+                - country
+              properties:
+                user_authorized:
+                  type: boolean
+                  description: User has authorized the background check
+                  example: true
+                force_creation:
+                  type: boolean
+                  description: Force creation of new check even if one exists
+                  default: true
+                type:
+                  type: string
+                  enum: [person, company]
+                  description: Type of background check
+                  example: "person"
+                country:
+                  type: string
+                  description: Country code
+                  example: "BR"
+                national_id:
+                  type: string
+                  description: National ID (CPF for Brazil persons)
+                  example: "449.720.338-78"
+                tax_id:
+                  type: string
+                  description: Tax ID (CNPJ for Brazil companies)
+                  example: "25.311.859/0001-42"
+                first_name:
+                  type: string
+                  description: First name (for person checks)
+                  example: "John"
+                last_name:
+                  type: string
+                  description: Last name (for person checks)
+                  example: "Doe"
+                company_name:
+                  type: string
+                  description: Company name (for company checks)
+                  example: "Example Corp"
+                custom_input:
+                  type: string
+                  description: Your external reference ID
+                  example: "my-ref-123"
+      responses:
+        '200':
+          description: Background check created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundCheck'
+        '404':
+          description: |
+            Background check feature not available.
+            This may be due to plan limitations, permissions, or changed API endpoints.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/checks/{checkId}/:
+    get:
+      tags:
+        - Background Checks
+      summary: Retrieve Background Check
+      description: Get basic information about a background check
+      operationId: getBackgroundCheck
+      parameters:
+        - name: checkId
+          in: path
+          required: true
+          description: Background check ID (starts with "CHK")
+          schema:
+            type: string
+            example: "CHKa006fc1af2e487ba060e0b657eada6c7"
+      responses:
+        '200':
+          description: Background check information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundCheck'
+        '404':
+          description: Background check not found
+
+  /api/v1/checks/{checkId}/details/:
+    get:
+      tags:
+        - Background Checks
+      summary: Retrieve Background Check Details
+      description: |
+        Get comprehensive details of a background check including:
+        - Datasets that were consulted
+        - Information found in each database  
+        - Severities associated with findings
+        
+        Only available when check status is "completed".
+      operationId: getBackgroundCheckDetails
+      parameters:
+        - name: checkId
+          in: path
+          required: true
+          description: Background check ID (starts with "CHK")
+          schema:
+            type: string
+            example: "CHKa006fc1af2e487ba060e0b657eada6c7"
+        - name: lang
+          in: query
+          description: Language for results
+          schema:
+            type: string
+            enum: [es, en, pt-br]
+            example: "pt-br"
+        - name: start_key
+          in: query
+          description: Pagination key for next page
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detailed background check results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        check_id:
+                          type: string
+                        data_set:
+                          type: string
+                          enum: [personal_identity, credit_history, business_background, international_background, alert_in_media]
+                        database_name:
+                          type: string
+                        result:
+                          type: string
+                          enum: [not_started, skipped, delayed, completed, error, expired, found, not_found, ignored]
+                        severity:
+                          type: string
+                          enum: [none, low, medium, high, critical, unknown]
+                        tables:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              title:
+                                type: string
+                              rows:
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    cells:
+                                      type: array
+                                      items:
+                                        type: object
+                                        properties:
+                                          label:
+                                            type: string
+                                          value:
+                                            type: string
+                        update_date:
+                          type: string
+                          format: date-time
+                  self:
+                    type: string
+                    description: Self-reference URL
+                  next:
+                    type: string
+                    description: Next page URL (for pagination)
+
+  # Partnership Operations
+  /api/v1/partner/company/:
+    get:
+      tags:
+        - Partnership
+      summary: List Partner Accounts
+      description: Retrieve a list of partner accounts
+      operationId: listPartnerAccounts
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of accounts to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of accounts to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: created_after
+          in: query
+          description: Filter accounts created after this date
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          description: Filter accounts created before this date
+          schema:
+            type: string
+            format: date-time
+        - name: country
+          in: query
+          description: Filter by country
+          schema:
+            type: string
+            enum: [br, mx, co, pe, cl]
+        - name: lang
+          in: query
+          description: Filter by language
+          schema:
+            type: string
+            enum: [pt-br, es, en]
+        - name: company_name
+          in: query
+          description: Filter by company name (partial match)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of partner accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PartnerAccount'
+                  count:
+                    type: integer
+                    description: Total number of accounts
+                  next:
+                    type: string
+                    nullable: true
+                    description: URL for next page
+                  previous:
+                    type: string
+                    nullable: true
+                    description: URL for previous page
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Partnership
+      summary: Create Partner Account
+      description: |
+        Create a new partner account for clients or departments.
+        
+        This allows you to manage multiple operations within a unified system while maintaining:
+        - Separation of documents and users by account
+        - Permissions adjusted per team or client
+        - Organized reports and usage data per unit
+        - Independent integrations for each account
+        
+        **Note**: Only accounts with partner features enabled can use this endpoint.
+      operationId: createPartnerAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - country
+                - lang
+                - company_name
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email of the new user who will be added as a member
+                  example: "andre+partner@zapsign.com.br"
+                phone_number:
+                  type: string
+                  description: Phone number of the new user
+                  example: "11958039555"
+                phone_country:
+                  type: string
+                  description: Country code for phone number
+                  example: "55"
+                country:
+                  type: string
+                  enum: [br, mx, co, pe, cl]
+                  description: Country of the new account
+                  example: "br"
+                lang:
+                  type: string
+                  enum: [pt-br, es, en]
+                  description: Language of the new company
+                  example: "en"
+                company_name:
+                  type: string
+                  description: Name of the new company
+                  example: "ZapSign Test"
+      responses:
+        '200':
+          description: Partner account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerAccount'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid Input"
+                  data:
+                    type: object
+                    properties:
+                      email:
+                        type: array
+                        items:
+                          type: string
+                        example: ["This field is required."]
+                      country:
+                        type: array
+                        items:
+                          type: string
+                        example: ["This field is required."]
+        '403':
+          description: Forbidden - insufficient permissions or plan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "Plan required to create partner company."
+
+  /api/v1/partner/update-payment-status/:
+    post:
+      tags:
+        - Partnership
+      summary: Update Partner Payment Status
+      description: |
+        Manage the payment status of client accounts in an automated way.
+        
+        This allows Direct Reseller Partners to:
+        - Suspend benefits for clients behind on payments
+        - Restore access when payments are resolved
+        - Maintain control over compliance and service continuity
+        
+        Status options:
+        - "adimplente": Client is up to date (unblocks plan)
+        - "inadimplente": Client hasn't paid (blocks plan)
+      operationId: updatePartnerPaymentStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - client_api_token
+                - payment_status
+              properties:
+                client_api_token:
+                  type: string
+                  description: API token of the client account
+                  example: "19e9dde1-73ea-47d4-b932-d9517715f21d30e4f5c4-3cef-42d1-bd9f-7c3c24715dab"
+                payment_status:
+                  type: string
+                  enum: [adimplente, inadimplente]
+                  description: Payment status to set
+                  example: "inadimplente"
+      responses:
+        '200':
+          description: Payment status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Status updated successfully"
+                  client_api_token:
+                    type: string
+                    example: "19e9dde1-73ea-47d4-b932-d9517715f21d30e4f5c4-3cef-42d1-bd9f-7c3c24715dab"
+                  payment_status:
+                    type: string
+                    example: "inadimplente"
+                  updated_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden - insufficient permissions
+
+  # Timestamp Operations
+  /api/v1/timestamp/:
+    get:
+      tags:
+        - Timestamp
+      summary: List Timestamps
+      description: Retrieve a list of timestamped documents
+      operationId: listTimestamps
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of timestamps to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of timestamps to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: created_after
+          in: query
+          description: Filter timestamps created after this date
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          description: Filter timestamps created before this date
+          schema:
+            type: string
+            format: date-time
+        - name: document_url
+          in: query
+          description: Filter by original document URL
+          schema:
+            type: string
+            format: uri
+      responses:
+        '200':
+          description: List of timestamps
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        url:
+                          type: string
+                          format: uri
+                          description: URL to download the timestamped document
+                        created_at:
+                          type: string
+                          format: date-time
+                          description: When the timestamp was created
+                  count:
+                    type: integer
+                    description: Total number of timestamps
+                  next:
+                    type: string
+                    nullable: true
+                    description: URL for next page
+                  previous:
+                    type: string
+                    nullable: true
+                    description: URL for previous page
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Payment required - timestamp feature not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Timestamp
+      summary: Add Timestamp
+      description: |
+        Add a timestamp to documents to ensure their existence at a specific moment 
+        and secure the integrity of digital signatures.
+        
+        The timestamp is an advanced security solution that records:
+        - Date and time of the signer's device
+        - Date and time from an external Trusted Timestamp Authority server
+        
+        **Requirements:**
+        - Document must be publicly accessible via URL
+        - Supported formats: PDF, DOCX
+        - Maximum file size: 10MB
+        - Requires specific plan with timestamp functionality
+      operationId: addTimestamp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: Public URL of your document (PDF or DOCX) up to 10MB
+                  example: "https://pdfobject.com/pdf/sample.pdf"
+      responses:
+        '200':
+          description: Timestamp added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                    description: URL to download the timestamped document
+                    example: "https://zapsign.s3.amazonaws.com/pdf/62c2b027-d8fc-4392-xas75-f3c46c3cfc7a/d33336-4182-8c8b-ded5287e4c0f.pdf"
+        '400':
+          description: Bad request - invalid URL or unsupported format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Payment required - timestamp feature not available on current plan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Payment Required"
+
+  # Webhook Operations  
+  /api/v1/user/company/webhook/:
+    get:
+      tags:
+        - Webhooks
+      summary: List Webhooks
+      description: Retrieve a list of all webhooks for your company
+      operationId: listWebhooks
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of webhooks to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of webhooks to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: url
+          in: query
+          description: Filter by webhook URL
+          schema:
+            type: string
+            format: uri
+        - name: created_after
+          in: query
+          description: Filter webhooks created after this date
+          schema:
+            type: string
+            format: date-time
+        - name: created_before
+          in: query
+          description: Filter webhooks created before this date
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of webhooks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Webhook'
+                  count:
+                    type: integer
+                    description: Total number of webhooks
+                  next:
+                    type: string
+                    nullable: true
+                    description: URL for next page
+                  previous:
+                    type: string
+                    nullable: true
+                    description: URL for previous page
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags:
+        - Webhooks
+      summary: Create Webhook
+      description: |
+        Create a webhook to receive notifications about events.
+        
+        Webhooks allow you to get real-time notifications when events occur,
+        such as document signing, creation, expiration, etc.
+      operationId: createWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+                - type
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: Webhook endpoint URL
+                  example: "https://your-app.com/webhook"
+                type:
+                  type: array
+                  items:
+                    type: string
+                    enum: [
+                      document.created, document.signed, document.cancelled, 
+                      document.expired, document.refused, document.viewed,
+                      document.expiration_alert, signer.created, signer.notification_sent,
+                      signer.reading_confirmation, signer.email_bounce, signer.failed_validation,
+                      background_check.completed
+                    ]
+                  description: Event types to listen for (empty array for all events)
+                  example: ["document.signed", "document.created"]
+      responses:
+        '200':
+          description: Webhook created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+
+  /api/v1/user/company/webhook/delete/:
+    delete:
+      tags:
+        - Webhooks
+      summary: Delete Webhook
+      description: Delete an existing webhook
+      operationId: deleteWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - id
+              properties:
+                id:
+                  type: string
+                  description: Webhook ID to delete
+                  example: "webhook-123"
+      responses:
+        '200':
+          description: Webhook deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Webhook deleted successfully"
+                  webhook_id:
+                    type: string
+                    example: "webhook-123"
+                  deleted_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  # Account Management Operations
+  /api/v1/user/company/plan/:
+    get:
+      tags:
+        - Account
+      summary: Get Plan Information
+      description: Retrieve information about your current plan and usage
+      operationId: getPlanInfo
+      responses:
+        '200':
+          description: Plan information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plan_name:
+                    type: string
+                    example: "Professional"
+                  credits_balance:
+                    type: integer
+                    example: 1000
+                  documents_limit:
+                    type: integer
+                    example: 10000
+                  features:
+                    type: array
+                    items:
+                      type: string
+                    example: ["background_checks", "timestamp", "partnership"]
+
+  /api/v1/user/company/users/:
+    get:
+      tags:
+        - Account
+      summary: List Account Users
+      description: Retrieve a list of all users in your account
+      operationId: listAccountUsers
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of users to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of users to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of account users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "user-123"
+                        name:
+                          type: string
+                          example: "John Doe"
+                        email:
+                          type: string
+                          format: email
+                          example: "john@example.com"
+                        role:
+                          type: string
+                          example: "admin"
+                        created_at:
+                          type: string
+                          format: date-time
+                          example: "2025-01-21T20:00:00Z"
+                  count:
+                    type: integer
+                    description: Total number of users
+                    example: 5
+
+    post:
+      tags:
+        - Account
+      summary: Create Account User
+      description: Create a new user in your account
+      operationId: createAccountUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+              properties:
+                name:
+                  type: string
+                  description: User full name
+                  example: "Jane Doe"
+                email:
+                  type: string
+                  format: email
+                  description: User email address
+                  example: "jane@example.com"
+                role:
+                  type: string
+                  enum: [admin, user]
+                  description: User role
+                  default: "user"
+      responses:
+        '200':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: "user-123"
+                      name:
+                        type: string
+                        example: "Jane Doe"
+                      email:
+                        type: string
+                        example: "jane@example.com"
+                      role:
+                        type: string
+                        example: "user"
+                  message:
+                    type: string
+                    example: "User created successfully"
+
+  /api/v1/user/company/users/{userId}/:
+    delete:
+      tags:
+        - Account
+      summary: Delete Account User
+      description: Remove a user from your account
+      operationId: deleteAccountUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User ID to delete
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User deleted successfully"
+                  user_id:
+                    type: string
+                    example: "user-123"
+                  deleted_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  # Signer Group Operations
+  /api/v1/docs/{documentToken}/signer-groups/:
+    post:
+      tags:
+        - Signers
+      summary: Create Signer Group
+      description: Create a group of signers for batch operations
+      operationId: createSignerGroup
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - signers
+              properties:
+                name:
+                  type: string
+                  description: Group name
+                  example: "Legal Team"
+                signers:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - email
+                    properties:
+                      name:
+                        type: string
+                        example: "John Doe"
+                      email:
+                        type: string
+                        format: email
+                        example: "john@example.com"
+                      phone_country:
+                        type: string
+                        example: "55"
+                      phone_number:
+                        type: string
+                        example: "11999999999"
+                      auth_mode:
+                        type: string
+                        enum: [email, sms, whatsapp, certificado_digital, reconhecimento_facial]
+                        example: "email"
+      responses:
+        '200':
+          description: Signer group created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  group_id:
+                    type: string
+                    example: "group-123"
+                  message:
+                    type: string
+                    example: "Signer group created successfully"
+                  signers_count:
+                    type: integer
+                    example: 3
+
+  /api/v1/docs/{documentToken}/signer-groups/{groupId}/:
+    delete:
+      tags:
+        - Signers
+      summary: Delete Signer Group
+      description: Remove a signer group from a document
+      operationId: deleteSignerGroup
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID to delete
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Signer group deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Signer group deleted successfully"
+                  group_id:
+                    type: string
+                    example: "group-123"
+
+  # Batch Operations
+  /api/v1/docs/{documentToken}/batch-sign/:
+    post:
+      tags:
+        - Signers
+      summary: Batch Sign via API
+      description: Sign documents in batch using API authentication
+      operationId: batchSign
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - signer_token
+                - signature_data
+              properties:
+                signer_token:
+                  type: string
+                  description: Signer token
+                  example: "signer-token-123"
+                signature_data:
+                  type: object
+                  description: Signature information
+                  properties:
+                    ip_address:
+                      type: string
+                      example: "192.168.1.1"
+                    user_agent:
+                      type: string
+                      example: "Mozilla/5.0..."
+                    signed_at:
+                      type: string
+                      format: date-time
+                      example: "2025-01-21T20:00:00Z"
+      responses:
+        '200':
+          description: Document signed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Document signed successfully"
+                  signed_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  # Mass Notifications
+  /api/v1/docs/{documentToken}/mass-notification/:
+    post:
+      tags:
+        - Signers
+      summary: Send Mass Notifications
+      description: Send notifications to all signers of a document
+      operationId: sendMassNotification
+      parameters:
+        - name: documentToken
+          in: path
+          required: true
+          description: Document token
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: Custom message to include
+                  example: "Please sign this document as soon as possible"
+                subject:
+                  type: string
+                  description: Custom email subject
+                  example: "Document requires your signature"
+                notification_type:
+                  type: string
+                  enum: [email, sms, whatsapp]
+                  description: Notification method
+                  default: "email"
+      responses:
+        '200':
+          description: Mass notifications sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Mass notifications sent successfully"
+                  notifications_sent:
+                    type: integer
+                    example: 5
+                  sent_at:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+
+  # Widget Operations
+  /api/v1/widget/:
+    post:
+      tags:
+        - Widget
+      summary: Create Widget
+      description: Create a signature widget for embedding in websites
+      operationId: createWidget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - document_token
+                - signer_token
+              properties:
+                document_token:
+                  type: string
+                  description: Document token to embed
+                  example: "a8561033-4e11-473e-b541-0b66de223085"
+                signer_token:
+                  type: string
+                  description: Signer token for the widget
+                  example: "signer-token-123"
+                theme:
+                  type: string
+                  enum: [light, dark]
+                  description: Widget theme
+                  default: "light"
+                language:
+                  type: string
+                  enum: [pt-br, en, es]
+                  description: Widget language
+                  default: "pt-br"
+      responses:
+        '200':
+          description: Widget created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  widget_id:
+                    type: string
+                    example: "widget-123"
+                  embed_code:
+                    type: string
+                    description: HTML code to embed the widget
+                    example: "<iframe src='https://widget.zapsign.com.br/...'></iframe>"
+                  url:
+                    type: string
+                    format: uri
+                    description: Direct URL to the widget
+                    example: "https://widget.zapsign.com.br/sign/..."
+        '400':
+          description: Bad request - invalid widget data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized - invalid API token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Document or signer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # Additional Utility Endpoints
+  /api/v1/health/:
+    get:
+      tags:
+        - System
+      summary: Health Check
+      description: Check the health status of the ZapSign API
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2025-01-21T20:00:00Z"
+                  version:
+                    type: string
+                    example: "1.0.107"
+
+  /api/v1/rate-limits/:
+    get:
+      tags:
+        - System
+      summary: Get Rate Limits
+      description: Get information about current rate limits and usage
+      operationId: getRateLimits
+      responses:
+        '200':
+          description: Rate limit information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  limits:
+                    type: object
+                    properties:
+                      requests_per_minute:
+                        type: integer
+                        example: 100
+                      requests_per_hour:
+                        type: integer
+                        example: 1000
+                      requests_per_day:
+                        type: integer
+                        example: 10000
+                  current_usage:
+                    type: object
+                    properties:
+                      requests_this_minute:
+                        type: integer
+                        example: 45
+                      requests_this_hour:
+                        type: integer
+                        example: 234
+                      requests_today:
+                        type: integer
+                        example: 1234
+                  reset_times:
+                    type: object
+                    properties:
+                      next_minute_reset:
+                        type: string
+                        format: date-time
+                        example: "2025-01-21T20:01:00Z"
+                      next_hour_reset:
+                        type: string
+                        format: date-time
+                        example: "2025-01-21T21:00:00Z"
+                      next_day_reset:
+                        type: string
+                        format: date-time
+                        example: "2025-01-22T00:00:00Z"
+        '401':
+          description: Unauthorized - invalid API token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Documents
+    description: |
+      Document management operations including creation, updates, signing workflow,
+      and various document types (regular, OneClick, from templates).
+  - name: Signers  
+    description: |
+      Signer management operations for adding, updating, removing signers
+      and managing their authentication and validation.
+  - name: Templates
+    description: |
+      Template management for creating reusable document templates
+      and generating documents from templates.
+  - name: Background Checks
+    description: |
+      Background check operations for verifying person and company information
+      through various databases and public records.
+  - name: Partnership
+    description: |
+      Partnership management for Direct Reseller Partners to create
+      client accounts and manage payment status.
+  - name: Timestamp
+    description: |
+      Timestamp operations for adding cryptographic timestamps to documents
+      to ensure integrity and legal validity.
+  - name: Webhooks
+    description: |
+      Webhook management for receiving real-time notifications
+      about document and signer events.
+  - name: Account
+    description: |
+      Account management operations including user management,
+      plan information, and account settings.
+  - name: Widget
+    description: |
+      Widget operations for creating embeddable signature interfaces
+      in websites and applications.
+  - name: System
+    description: |
+      System operations including health checks, rate limit information,
+      and API status monitoring.

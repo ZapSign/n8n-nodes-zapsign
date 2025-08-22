@@ -63,14 +63,22 @@ export class ZapSign implements INodeType {
 						name: 'Template',
 						value: 'template',
 					},
-					{
-						name: 'Background Check',
-						value: 'backgroundCheck',
-					},
-					{
-						name: 'Webhook',
-						value: 'webhook',
-					},
+									{
+					name: 'Background Check',
+					value: 'backgroundCheck',
+				},
+				{
+					name: 'Partnership',
+					value: 'partnership',
+				},
+				{
+					name: 'Timestamp',
+					value: 'timestamp',
+				},
+				{
+					name: 'Webhook',
+					value: 'webhook',
+				},
 				],
 				default: 'document',
 			},
@@ -312,6 +320,31 @@ export class ZapSign implements INodeType {
 				],
 				default: 'createPerson',
 			},
+			// Partnership operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['partnership'] } },
+				options: [
+					{ name: 'Create Partner Account', value: 'createAccount', action: 'Create a new partner account' },
+					{ name: 'Update Payment Status', value: 'updatePaymentStatus', action: 'Update partner payment status' },
+				],
+				default: 'createAccount',
+			},
+			// Timestamp operations
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['timestamp'] } },
+				options: [
+					{ name: 'Add Timestamp', value: 'add', action: 'Add timestamp to a document' },
+				],
+				default: 'add',
+			},
 			// Document fields
 			{
 				displayName: 'Document Name',
@@ -470,6 +503,343 @@ export class ZapSign implements INodeType {
 				description: 'Name of the binary property containing the file data to validate',
 			},
 
+			// Template Token field - moved here to appear before Signers for better UX
+			{
+				displayName: 'Template Token',
+				name: 'templateToken',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument', 'get', 'update', 'delete', 'updateTemplateForm'],
+					},
+				},
+				description: 'Token of the template (modelo)',
+			},
+			
+			// Document Name field - moved here to appear after Template Token
+			{
+				displayName: 'Document Name',
+				name: 'name',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument', 'createTemplateDocx', 'update'],
+					},
+				},
+				description: 'Name of the document (optional)',
+			},
+
+			// Note: For template documents, only basic signer fields are supported
+			// Advanced options like auth_mode, signature_placement, etc. are defined in the template
+			
+			// Individual signer properties for template document creation
+			{
+				displayName: 'Signer Name',
+				name: 'signer_name',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Name of the signer (required)',
+			},
+			{
+				displayName: 'Signer Email',
+				name: 'signer_email',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Email of the signer',
+			},
+			{
+				displayName: 'Phone Country Code',
+				name: 'signer_phone_country',
+				type: 'string',
+				default: '55',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Country code for phone number (e.g., 55 for Brazil)',
+			},
+			{
+				displayName: 'Phone Number',
+				name: 'signer_phone_number',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Phone number of the signer',
+			},
+			
+			// Template Data field - template variables to replace in the document
+			{
+				displayName: 'Template Data',
+				name: 'templateData',
+				type: 'fixedCollection',
+				typeOptions: { multipleValues: true },
+				placeholder: 'Add Template Variable',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Template variables to replace in the document',
+				options: [
+					{
+						displayName: 'Variable',
+						name: 'variable',
+						values: [
+							{
+								displayName: 'Variable Name',
+								name: 'variableName',
+								type: 'string',
+								default: '',
+								description: 'Name of the variable in the template (e.g., "NOME COMPLETO")',
+							},
+							{
+								displayName: 'Variable Value',
+								name: 'variableValue',
+								type: 'string',
+								default: '',
+								description: 'Value to replace the variable with',
+							},
+						],
+					},
+				],
+			},
+			
+			// Additional supported fields for template document creation
+			{
+				displayName: 'Language',
+				name: 'lang',
+				type: 'options',
+				options: [
+					{ name: 'Português', value: 'pt-br' },
+					{ name: 'Español', value: 'es' },
+					{ name: 'English', value: 'en' },
+				],
+				default: 'pt-br',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Language of the document',
+			},
+			{
+				displayName: 'Disable Signer Emails',
+				name: 'disable_signer_emails',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Disable emails sent to signers',
+			},
+			{
+				displayName: 'Brand Logo',
+				name: 'brand_logo',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'URL of the brand logo image (must be publicly accessible)',
+			},
+			{
+				displayName: 'Brand Primary Color',
+				name: 'brand_primary_color',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Primary color in RGB or hexadecimal (e.g., "#0011ee")',
+			},
+			{
+				displayName: 'Brand Name',
+				name: 'brand_name',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Brand name for email sender (max 100 characters)',
+			},
+			{
+				displayName: 'External ID',
+				name: 'external_id',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'ID of the document in your application',
+			},
+			{
+				displayName: 'Folder Path',
+				name: 'folder_path',
+				type: 'string',
+				default: '/',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Path where document will be placed (max 255 chars, 5 levels)',
+			},
+			{
+				displayName: 'Created By',
+				name: 'created_by',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Email of the user who will be set as creator',
+			},
+			{
+				displayName: 'Folder Token',
+				name: 'folder_token',
+				type: 'string',
+				default: '',
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Token of the folder (has priority over folder_path)',
+			},
+			{
+				displayName: 'Disable Signers Get Original File',
+				name: 'disable_signers_get_original_file',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Disable signers from downloading the original file',
+			},
+			{
+				displayName: 'Send Automatic WhatsApp',
+				name: 'send_automatic_whatsapp',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Send invitation via WhatsApp (costs R$ 0.50 per message)',
+			},
+			{
+				displayName: 'Send WhatsApp Signed File',
+				name: 'send_automatic_whatsapp_signed_file',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Send signed file via WhatsApp (costs R$ 0.50 per message)',
+			},
+			{
+				displayName: 'Signature Order Active',
+				name: 'signature_order_active',
+				type: 'boolean',
+				default: false,
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Enable sequential signature ordering',
+			},
+			
+			// Metadata field for template document creation
+			{
+				displayName: 'Metadata',
+				name: 'metadata',
+				type: 'collection',
+				placeholder: 'Add Metadata',
+				default: {},
+				displayOptions: {
+					show: {
+						resource: ['template'],
+						operation: ['createDocument'],
+					},
+				},
+				description: 'Custom metadata for the document (appears in webhooks). Add metadata as key-value pairs.',
+				options: [
+					{
+						displayName: 'Metadata Key',
+						name: 'key',
+						type: 'string',
+						default: '',
+						description: 'Metadata key',
+					},
+					{
+						displayName: 'Metadata Value',
+						name: 'value',
+						type: 'string',
+						default: '',
+						description: 'Metadata value',
+					},
+				],
+			},
+
+			// Signers field - only for regular document creation (not templates)
 			{
 				displayName: 'Signers',
 				name: 'signers',
@@ -482,10 +852,10 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['create', 'createOneClick', 'createDocument'],
+						operation: ['create', 'createOneClick'],
 					},
 				},
-				description: 'Signers for the document',
+				description: 'Signers for the document (not used for template documents)',
 				options: [
 					{
 						displayName: 'Signer',
@@ -496,6 +866,7 @@ export class ZapSign implements INodeType {
 								name: 'name',
 								type: 'string',
 								default: '',
+								required: true,
 								description: 'Name of the signer',
 							},
 							{
@@ -518,27 +889,6 @@ export class ZapSign implements INodeType {
 								type: 'string',
 								default: '',
 								description: 'Phone number of the signer',
-							},
-							{
-								displayName: 'Lock Name',
-								name: 'lock_name',
-								type: 'boolean',
-								default: false,
-								description: 'Whether to lock the signer name field',
-							},
-							{
-								displayName: 'Lock Email',
-								name: 'lock_email',
-								type: 'boolean',
-								default: false,
-								description: 'Whether to lock the signer email field',
-							},
-							{
-								displayName: 'Lock Phone',
-								name: 'lock_phone',
-								type: 'boolean',
-								default: false,
-								description: 'Whether to lock the signer phone field',
 							},
 							{
 								displayName: 'Auth Mode',
@@ -736,10 +1086,10 @@ export class ZapSign implements INodeType {
 				displayOptions: {
 					show: {
 						resource: ['document'],
-						operation: ['cancel'],
+						operation: ['cancel', 'refuse'],
 					},
 				},
-				description: 'Reason for cancellation to be stored in the document history',
+				description: 'Reason for cancellation/refusal to be stored in the document history',
 			},
 			{
 				displayName: 'Extra Document Name',
@@ -830,6 +1180,20 @@ export class ZapSign implements INodeType {
 				description: 'Token of the template (modelo dinâmico) to use for the extra document',
 			},
 			// Update Document fields
+			{
+				displayName: 'Document Token',
+				name: 'documentToken',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['document'],
+						operation: ['update'],
+					},
+				},
+				description: 'Token of the document to update',
+			},
 			{
 				displayName: 'New Document Name',
 				name: 'newDocumentName',
@@ -1297,72 +1661,7 @@ export class ZapSign implements INodeType {
 				},
 				description: 'Whether to require facial recognition',
 			},
-			// Template fields
-			{
-				displayName: 'Template Token',
-				name: 'templateToken',
-						type: 'string',
-				default: '',
-				required: true,
-				displayOptions: {
-					show: {
-						resource: ['template'],
-						operation: ['createDocument', 'get', 'update', 'delete', 'updateTemplateForm'],
-					},
-				},
-				description: 'Token of the template (modelo)',
-			},
-			{
-				displayName: 'Document Name',
-				name: 'name',
-						type: 'string',
-						default: '',
-				displayOptions: {
-					show: {
-						resource: ['template'],
-						operation: ['createDocument', 'createTemplateDocx', 'update'],
-					},
-			},
-				description: 'Name of the document (optional)',
-			},
 			// Removed signer information for template-created documents. Signers should be created via dynamic data.
-			{
-				displayName: 'Template Data',
-				name: 'templateData',
-				type: 'fixedCollection',
-				typeOptions: { multipleValues: true },
-				placeholder: 'Add Template Variable',
-				default: {},
-				displayOptions: {
-					show: {
-						resource: ['template'],
-						operation: ['createDocument'],
-					},
-				},
-				description: 'Template variables to replace in the document',
-				options: [
-					{
-						displayName: 'Variable',
-						name: 'variable',
-						values: [
-					{
-						displayName: 'Variable Name',
-						name: 'variableName',
-						type: 'string',
-						default: '',
-						description: 'Name of the variable in the template (e.g., "NOME COMPLETO")',
-					},
-					{
-						displayName: 'Variable Value',
-						name: 'variableValue',
-						type: 'string',
-						default: '',
-						description: 'Value to replace the variable with',
-							},
-						],
-					},
-				],
-			},
 			{
 				displayName: 'Template Additional Fields',
 				name: 'templateAdditionalFields',
@@ -2019,6 +2318,14 @@ export class ZapSign implements INodeType {
 				description: 'Full name of the person (optional)',
 			},
 			{
+				displayName: 'Force Creation',
+				name: 'forceCreation',
+				type: 'boolean',
+				default: true,
+				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['createPerson'] } },
+				description: 'If true, forces creation of a new check even if one already exists. If false, returns existing result.',
+			},
+			{
 				displayName: 'Company Document (CNPJ)',
 				name: 'companyCnpj',
 				type: 'string',
@@ -2028,6 +2335,22 @@ export class ZapSign implements INodeType {
 				description: 'CNPJ of the company to check',
 			},
 			{
+				displayName: 'Company Name',
+				name: 'companyName',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['createCompany'] } },
+				description: 'Name of the company (optional)',
+			},
+			{
+				displayName: 'Force Creation',
+				name: 'forceCreation',
+				type: 'boolean',
+				default: true,
+				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['createCompany'] } },
+				description: 'If true, forces creation of a new check even if one already exists. If false, returns existing result.',
+			},
+			{
 				displayName: 'Check Token',
 				name: 'checkToken',
 				type: 'string',
@@ -2035,6 +2358,103 @@ export class ZapSign implements INodeType {
 				required: true,
 				displayOptions: { show: { resource: ['backgroundCheck'], operation: ['get', 'details'] } },
 				description: 'Token of the background check to retrieve',
+			},
+			// Partnership fields
+			{
+				displayName: 'Email',
+				name: 'partnerEmail',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['partnership'], operation: ['createAccount'] } },
+				description: 'Email of the new user who will be added as a member',
+			},
+			{
+				displayName: 'Phone Number',
+				name: 'partnerPhoneNumber',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['partnership'], operation: ['createAccount'] } },
+				description: 'Phone number of the new user',
+			},
+			{
+				displayName: 'Phone Country Code',
+				name: 'partnerPhoneCountry',
+				type: 'string',
+				default: '55',
+				displayOptions: { show: { resource: ['partnership'], operation: ['createAccount'] } },
+				description: 'Country code for the phone number (e.g., 55 for Brazil)',
+			},
+			{
+				displayName: 'Country',
+				name: 'partnerCountry',
+				type: 'options',
+				options: [
+					{ name: 'Brazil', value: 'br' },
+					{ name: 'Mexico', value: 'mx' },
+					{ name: 'Colombia', value: 'co' },
+					{ name: 'Peru', value: 'pe' },
+					{ name: 'Chile', value: 'cl' },
+				],
+				default: 'br',
+				required: true,
+				displayOptions: { show: { resource: ['partnership'], operation: ['createAccount'] } },
+				description: 'Country of the new account',
+			},
+			{
+				displayName: 'Language',
+				name: 'partnerLang',
+				type: 'options',
+				options: [
+					{ name: 'Portuguese (Brazil)', value: 'pt-br' },
+					{ name: 'Spanish', value: 'es' },
+					{ name: 'English', value: 'en' },
+				],
+				default: 'pt-br',
+				required: true,
+				displayOptions: { show: { resource: ['partnership'], operation: ['createAccount'] } },
+				description: 'Language of the new company',
+			},
+			{
+				displayName: 'Company Name',
+				name: 'partnerCompanyName',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['partnership'], operation: ['createAccount'] } },
+				description: 'Name of the new company',
+			},
+			{
+				displayName: 'Client API Token',
+				name: 'clientApiToken',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['partnership'], operation: ['updatePaymentStatus'] } },
+				description: 'API token of the client account whose payment status you want to update',
+			},
+			{
+				displayName: 'Payment Status',
+				name: 'paymentStatus',
+				type: 'options',
+				options: [
+					{ name: 'Adimplente (Up to date)', value: 'adimplente' },
+					{ name: 'Inadimplente (Default)', value: 'inadimplente' },
+				],
+				default: 'adimplente',
+				required: true,
+				displayOptions: { show: { resource: ['partnership'], operation: ['updatePaymentStatus'] } },
+				description: 'Payment status to set for the client account',
+			},
+			// Timestamp fields
+			{
+				displayName: 'Document URL',
+				name: 'timestampDocumentUrl',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['timestamp'], operation: ['add'] } },
+				description: 'Public URL of your document (PDF or DOCX) up to 10MB',
 			},
 			{
 				displayName: 'Limit',
@@ -2056,20 +2476,24 @@ export class ZapSign implements INodeType {
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+		console.log('ZapSign Node Execute Function Called');
 		const items = this.getInputData();
+		console.log(`ZapSign Node - Items length: ${items.length}`);
 		const returnData: IDataObject[] = [];
 		const resource = this.getNodeParameter('resource', 0);
 		const operation = this.getNodeParameter('operation', 0);
+		console.log(`ZapSign Node - Resource: ${resource}, Operation: ${operation}`);
 
 		// Resolve base URL from credentials once, allowing env override
 		const credentials = await this.getCredentials('zapSignApi');
 		const sandboxApiBaseUrl = process.env.ZAPSIGN_API_BASE_URL_SANDBOX || 'https://sandbox.api.zapsign.com.br';
 		const prodApiBaseUrl = process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br';
-		const baseUrl = (credentials as IDataObject).environment === 'sandbox' ? sandboxApiBaseUrl : prodApiBaseUrl;
+		const baseUrl = credentials?.environment === 'sandbox' ? sandboxApiBaseUrl : prodApiBaseUrl;
 
 
 		for (let i = 0; i < items.length; i++) {
 			try {
+				this.logger.info(`Processing item ${i + 1}/${items.length} - Resource: ${resource}, Operation: ${operation}`);
 				if (resource === 'document') {
 					if (operation === 'create') {
 						// Create document
@@ -2199,15 +2623,20 @@ export class ZapSign implements INodeType {
 					} else if (operation === 'refuse') {
 						// Refuse document (alias of cancel)
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const rejectedReason = this.getNodeParameter('rejectedReason', i) as string;
 
 						// Add debug logging
 						this.logger.debug(`Refuse Document Request - Document Token: ${documentToken}`);
+						this.logger.debug(`Refuse Document Request - Rejected Reason: ${rejectedReason}`);
 						this.logger.debug(`Refuse Document Request - Base URL: ${baseUrl}`);
 
 						const options: IRequestOptions = {
 							method: 'POST',
 							url: `${baseUrl}/api/v1/refuse/`,
-							body: { doc_token: documentToken },
+							body: { 
+								doc_token: documentToken,
+								rejected_reason: rejectedReason
+							},
 							headers: {
 								'Content-Type': 'application/json'
 							},
@@ -2222,6 +2651,27 @@ export class ZapSign implements INodeType {
 						} catch (error) {
 							this.logger.error(`Refuse Document Error: ${error.message}`);
 							this.logger.error(`Refuse Document Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide specific error messages based on common issues
+							if (error.message.includes('400') || error.message.includes('Bad request')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Document cannot be refused (400 Bad Request).\n\n` +
+									`According to ZapSign API documentation, the document must meet these conditions:\n` +
+									`1. Document status must be "Em andamento" (In progress)\n` +
+									`2. Document must have been created with 'allow_refuse_signature: true'\n` +
+									`3. Document must not be completed, expired, or in an invalid state\n\n` +
+									`Possible solutions:\n` +
+									`- Check if the document is still in progress\n` +
+									`- Verify the document was created with refuse permission enabled\n` +
+									`- Ensure the document token is valid and active\n\n` +
+									`Technical details:\n` +
+									`- Document Token: ${documentToken}\n` +
+									`- API Endpoint: ${options.url}\n` +
+									`- Status: 400 (Bad Request)`, 
+									{ itemIndex: i }
+								);
+							}
+							
 							throw error;
 						}
 
@@ -2346,8 +2796,39 @@ export class ZapSign implements INodeType {
 							},
 						};
 
+						try {
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Create Document Error: ${error.message}`);
+							this.logger.error(`Create Document Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide specific error messages based on common issues
+							if (error.message.includes('400') || error.message.includes('Bad request')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Document creation failed (400 Bad Request).\n\n` +
+									`Common issues that cause this error:\n` +
+									`1. Missing or invalid signer email address\n` +
+									`2. Invalid file format or corrupted file data\n` +
+									`3. Missing required fields (name, signers, etc.)\n` +
+									`4. Invalid authentication mode or signer configuration\n` +
+									`5. File size exceeds limits or unsupported format\n\n` +
+									`Please check:\n` +
+									`- Ensure all signers have valid email addresses (unless blank_email is enabled)\n` +
+									`- Verify the file content and format are valid\n` +
+									`- Check that all required fields are properly filled\n` +
+									`- Validate signer configuration and authentication modes\n\n` +
+									`Technical details:\n` +
+									`- API Endpoint: ${options.url}\n` +
+									`- Status: 400 (Bad Request)\n` +
+									`- Document Name: ${this.getNodeParameter('name', i)}\n` +
+									`- File Type: ${this.getNodeParameter('fileInputType', i)}`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
+						}
 
 					} else if (operation === 'get') {
 						// Get document details according to ZapSign API documentation
@@ -2460,6 +2941,58 @@ export class ZapSign implements INodeType {
 						};
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
+					} else if (operation === 'update') {
+						// Update document data while in progress
+						const documentToken = this.getNodeParameter('documentToken', i) as string;
+						const newDocumentName = this.getNodeParameter('newDocumentName', i, '') as string;
+						const newDateLimitToSign = this.getNodeParameter('newDateLimitToSign', i, '') as string;
+						const newFolderPath = this.getNodeParameter('newFolderPath', i, '') as string;
+						const newFolderToken = this.getNodeParameter('newFolderToken', i, '') as string;
+						const extraDocsToRename = this.getNodeParameter('extraDocsToRename', i, {}) as IDataObject;
+
+						// Build request body according to ZapSign API documentation
+						const body: IDataObject = {};
+
+						// Add optional fields if provided
+						if (newDocumentName) body.name = newDocumentName;
+						if (newDateLimitToSign) body.date_limit_to_sign = newDateLimitToSign;
+						if (newFolderPath) body.folder_path = newFolderPath;
+						if (newFolderToken) body.folder_token = newFolderToken;
+
+						// Handle extra documents renaming if provided
+						if (extraDocsToRename && Object.keys(extraDocsToRename).length > 0) {
+							const extraDocToken = extraDocsToRename.extraDocToken as string;
+							const newExtraDocName = extraDocsToRename.newExtraDocName as string;
+							
+							if (extraDocToken && newExtraDocName) {
+								body.extra_docs = [{
+									token: extraDocToken,
+									name: newExtraDocName
+								}];
+							}
+						}
+
+						// Log the request for debugging
+						this.logger.debug(`Update Document Request - Document Token: ${documentToken}`);
+						this.logger.debug(`Update Document Request - Body: ${JSON.stringify(body)}`);
+
+						const options: IRequestOptions = {
+							method: 'PUT',
+							url: `${baseUrl}/api/v1/docs/${documentToken}/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
+						};
+
+						try {
+							const responseData = await requestJson(this, options);
+							this.logger.debug(`Update Document Response: ${JSON.stringify(responseData)}`);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Update Document Error: ${error.message}`);
+							throw error;
+						}
 					} else if (operation === 'placeSignatures') {
 						// Place signatures/rubricas by coordinates
 						const documentToken = this.getNodeParameter('documentToken', i, '') as string;
@@ -2543,87 +3076,95 @@ export class ZapSign implements INodeType {
 						// Add extra document from template with variable replacement
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
 						const templateToken = this.getNodeParameter('extraDocumentTemplateToken', i) as string;
-						const templateData = this.getNodeParameter('extraDocumentTemplateData', i) as IDataObject;
+						const extraDocTemplateData = this.getNodeParameter('extraDocumentTemplateData', i) as IDataObject;
 
 						// Build request body according to ZapSign API documentation
 						const body: IDataObject = {
 							template_id: templateToken,
 						};
 
-						// Add template data (variables) if provided
-						if (templateData && Object.keys(templateData).length > 0) {
-							// Convert template data to the format expected by the API
-							// The API expects an array of objects with 'de' (variable name) and 'para' (value)
-							const dataArray = [];
-							for (const [key, value] of Object.entries(templateData)) {
-								if (key && value) {
-									dataArray.push({
-										de: key,
-										para: value,
-									});
+						// Add template data (variables) if provided (fixedCollection -> array of {de, para})
+						const variables = (extraDocTemplateData?.variable as IDataObject[]) || [];
+						
+						this.logger.debug(`Add Extra Document from Template - Template Data: ${JSON.stringify(extraDocTemplateData)}`);
+						this.logger.debug(`Add Extra Document from Template - Variables: ${JSON.stringify(variables)}`);
+						
+						if (Array.isArray(variables) && variables.length > 0) {
+							const dataArray = variables
+								.map((entry) => ({ de: (entry.variableName as string) || '', para: (entry.variableValue as string) || '' }))
+								.filter((v) => v.de && v.para);
+							
+							this.logger.debug(`Add Extra Document from Template - Data Array: ${JSON.stringify(dataArray)}`);
+							
+							// Validate that we have at least one valid variable
+							if (dataArray.length === 0) {
+								this.logger.warn('No valid template variables found. All variables must have both name and value.');
+							} else {
+								// Validate variable format according to ZapSign API docs
+								const invalidVars = dataArray.filter(v => !v.de.trim() || !v.para.trim());
+								if (invalidVars.length > 0) {
+									this.logger.warn(`Some template variables have empty names or values: ${JSON.stringify(invalidVars)}`);
+								}
+								
+								// Only add valid variables to the request
+								const validVars = dataArray.filter(v => v.de.trim() && v.para.trim());
+								if (validVars.length > 0) {
+									body.data = validVars;
+									this.logger.debug(`Added ${validVars.length} valid template variables to request`);
 								}
 							}
-							if (dataArray.length > 0) {
-								body.data = dataArray;
-							}
 						}
-
+						
+						// Log the final request body for debugging
+						this.logger.debug(`Add Extra Document from Template - Final Body: ${JSON.stringify(body)}`);
+						this.logger.debug(`Add Extra Document from Template - Body Keys: ${Object.keys(body)}`);
+						
+						// Final validation: ensure we have the minimum required fields
+						const requiredFields = ['template_id'];
+						const missingFields = requiredFields.filter(field => !body[field]);
+						if (missingFields.length > 0) {
+							throw new NodeOperationError(this.getNode(), 
+								`Missing required fields for extra document creation: ${missingFields.join(', ')}. ` +
+								`Please ensure you have provided a template token.`
+							);
+						}
+						
+						// Log what we're about to send
+						this.logger.info(`Adding extra document from template with: template_id=${body.template_id}, variables=${Array.isArray(body.data) ? body.data.length : 0}`);
+						
+						// Log the complete request body for debugging
+						this.logger.debug(`Add Extra Document from Template - Complete request body: ${JSON.stringify(body, null, 2)}`);
+						
+						// According to ZapSign API docs for extra documents
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/models/${documentToken}/upload-extra-doc/`,
+							url: `${baseUrl}/api/v1/docs/${documentToken}/extra-docs/`,
 							body,
-							headers: {
-								'Content-Type': 'application/json',
-							},
 						};
 
+						this.logger.debug(`Add Extra Document from Template - URL: ${options.url}`);
+
+						try {
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
-					} else if (operation === 'update') {
-						// Update document data while in progress
-						const documentToken = this.getNodeParameter('documentToken', i) as string;
-						const newDocumentName = this.getNodeParameter('newDocumentName', i) as string;
-						const newDateLimitToSign = this.getNodeParameter('newDateLimitToSign', i) as string;
-						const newFolderPath = this.getNodeParameter('newFolderPath', i) as string;
-						const newFolderToken = this.getNodeParameter('newFolderToken', i) as string;
-						const extraDocsToRename = this.getNodeParameter('extraDocsToRename', i) as IDataObject;
-
-						// Build request body according to ZapSign API documentation
-						const body: IDataObject = {};
-
-						// Add optional fields if provided
-						if (newDocumentName) {
-							body.name = newDocumentName;
+						} catch (error) {
+							this.logger.error(`Add Extra Document from Template Error: ${error.message}`);
+							this.logger.error(`Add Extra Document from Template Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages based on common issues
+							if (error.message.includes('400') || error.message.includes('Bad Request')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Bad request - please check your parameters. Common issues:\n` +
+									`1. Template token is invalid or expired\n` +
+									`2. Template variables have invalid names or values\n` +
+									`3. Required fields are missing\n\n` +
+									`Request body: ${JSON.stringify(body)}`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
 						}
-						if (newDateLimitToSign) {
-							body.date_limit_to_sign = newDateLimitToSign;
-						}
-						if (newFolderPath) {
-							body.folder_path = newFolderPath;
-						}
-						if (newFolderToken) {
-							body.folder_token = newFolderToken;
-						}
-
-						// Add extra documents to rename if provided
-						if (extraDocsToRename && extraDocsToRename.extraDocToken && extraDocsToRename.newExtraDocName) {
-							body.extra_docs = [{
-								token: extraDocsToRename.extraDocToken,
-								name: extraDocsToRename.newExtraDocName,
-							}];
-						}
-
-						const options: IRequestOptions = {
-							method: 'PUT',
-							url: `${baseUrl}/api/v1/docs/${documentToken}/`,
-							body,
-							headers: {
-								'Content-Type': 'application/json',
-							},
-						};
-
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
 					} else if (operation === 'reorderEnvelope') {
 						// Reorder documents within an envelope
 						const documentToken = this.getNodeParameter('documentToken', i) as string;
@@ -2670,7 +3211,24 @@ export class ZapSign implements INodeType {
 						};
 
 						const responseData = await requestJson(this, options);
+						
+						// Log the response for debugging
+						this.logger.debug(`Reorder Envelope Response: ${JSON.stringify(responseData)}`);
+						
+						// Ensure we have valid response data before pushing
+						if (responseData) {
 						pushResult(returnData, responseData);
+						} else {
+							// If no response data, create a success message
+							pushResult(returnData, {
+								success: true,
+								message: 'Documents reordered successfully',
+								documentToken,
+								documentDisplayOrder: body.document_display_order
+							});
+						}
+						
+						this.logger.info(`Reorder Envelope operation completed successfully for item ${i + 1}`);
 					}
 
 				} else if (resource === 'signer') {
@@ -2862,6 +3420,16 @@ export class ZapSign implements INodeType {
 						const templateToken = this.getNodeParameter('templateToken', i) as string;
 						const name = this.getNodeParameter('name', i) as string;
 
+						// Validate required template token
+						if (!templateToken || templateToken.trim() === '') {
+							throw new NodeOperationError(this.getNode(), 'Template Token is required for template document creation');
+						}
+						
+						// Basic validation for template token format (should be a UUID-like string)
+						if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(templateToken.trim())) {
+							this.logger.warn(`Template token format may be invalid. Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx. Got: ${templateToken}`);
+						}
+
 						// Add debug logging
 						this.logger.debug(`Create Document from Template Request - Template Token: ${templateToken}`);
 						this.logger.debug(`Create Document from Template Request - Name: ${name}`);
@@ -2876,57 +3444,168 @@ export class ZapSign implements INodeType {
 							body.name = name;
 						}
 
-						// Add signer information if provided
-						const signers = this.getNodeParameter('signers', i) as IDataObject;
-						const signerEntries = (signers?.signer as IDataObject[]) || [];
+						// Add signer information - according to ZapSign API docs, only basic fields are supported for template documents
+						// For template documents, we use individual signer properties, not an array
+						const signerName = this.getNodeParameter('signer_name', i) as string;
 						
-						if (Array.isArray(signerEntries) && signerEntries.length > 0) {
-							// Use the first signer for basic info
-							const firstSigner = signerEntries[0];
-							if (firstSigner.name) {
-								body.signer_name = firstSigner.name as string;
-							}
-							if (firstSigner.email) {
-								body.signer_email = firstSigner.email as string;
-							}
-							if (firstSigner.phone_country) {
-								body.signer_phone_country = firstSigner.phone_country as string;
-							}
-							if (firstSigner.phone_number) {
-								body.signer_phone_number = firstSigner.phone_number as string;
-							}
+						// Validate that signer name is provided
+						if (!signerName || signerName.trim() === '') {
+							throw new NodeOperationError(this.getNode(), 'Signer name is required for template document creation');
 						}
-
-						// Signer information is now provided dynamically via template variables; no static signer fields here
-
-						// Add template data (variables) if provided (fixedCollection -> array of {variableName, variableValue})
+						
+						// According to ZapSign API docs for template documents, only these basic signer fields are supported:
+						// - signer_name (required)
+						// - signer_email
+						// - signer_phone_country  
+						// - signer_phone_number
+						// 
+						// All other signer options (auth_mode, signature_placement, etc.) are defined in the template
+						// and cannot be overridden when creating the document.
+						
+						// Required field
+						body.signer_name = signerName;
+						
+						// Optional basic fields
+						const signerEmail = this.getNodeParameter('signer_email', i) as string;
+						if (signerEmail && signerEmail.trim() !== '') {
+							body.signer_email = signerEmail;
+						}
+						
+						const signerPhoneCountry = this.getNodeParameter('signer_phone_country', i) as string;
+						if (signerPhoneCountry && signerPhoneCountry.trim() !== '') {
+							body.signer_phone_country = signerPhoneCountry;
+						}
+						
+						const signerPhoneNumber = this.getNodeParameter('signer_phone_number', i) as string;
+						if (signerPhoneNumber && signerPhoneNumber.trim() !== '') {
+							body.signer_phone_number = signerPhoneNumber;
+						}
+						
+						this.logger.debug(`Create Document from Template Request - Mapped basic signer fields: ${JSON.stringify({
+							name: body.signer_name,
+							email: body.signer_email,
+							phone_country: body.signer_phone_country,
+							phone_number: body.signer_phone_number
+						})}`);
+						
+						// Note: All other signer options (auth_mode, signature_placement, require_cpf, etc.)
+						// are defined in the template and cannot be changed when creating the document.
+						// The template controls the signing experience and validation rules.
+						
+						// Add additional supported fields for template document creation
+						const lang = this.getNodeParameter('lang', i) as string;
+						if (lang && lang !== 'pt-br') {
+							body.lang = lang;
+						}
+						
+						const disableSignerEmails = this.getNodeParameter('disable_signer_emails', i) as boolean;
+						if (disableSignerEmails) {
+							body.disable_signer_emails = disableSignerEmails;
+						}
+						
+						const brandLogo = this.getNodeParameter('brand_logo', i) as string;
+						if (brandLogo && brandLogo.trim() !== '') {
+							body.brand_logo = brandLogo;
+						}
+						
+						const brandPrimaryColor = this.getNodeParameter('brand_primary_color', i) as string;
+						if (brandPrimaryColor && brandPrimaryColor.trim() !== '') {
+							body.brand_primary_color = brandPrimaryColor;
+						}
+						
+						const brandName = this.getNodeParameter('brand_name', i) as string;
+						if (brandName && brandName.trim() !== '') {
+							body.brand_name = brandName;
+						}
+						
+						const externalId = this.getNodeParameter('external_id', i) as string;
+						if (externalId && externalId.trim() !== '') {
+							body.external_id = externalId;
+						}
+						
+						const folderPath = this.getNodeParameter('folder_path', i) as string;
+						if (folderPath && folderPath !== '/') {
+							body.folder_path = folderPath;
+						}
+						
+						const createdBy = this.getNodeParameter('created_by', i) as string;
+						if (createdBy && createdBy.trim() !== '') {
+							body.created_by = createdBy;
+						}
+						
+						const folderToken = this.getNodeParameter('folder_token', i) as string;
+						if (folderToken && folderToken.trim() !== '') {
+							body.folder_token = folderToken;
+						}
+						
+						const disableSignersGetOriginalFile = this.getNodeParameter('disable_signers_get_original_file', i) as boolean;
+						if (disableSignersGetOriginalFile) {
+							body.disable_signers_get_original_file = disableSignersGetOriginalFile;
+						}
+						
+						const sendAutomaticWhatsapp = this.getNodeParameter('send_automatic_whatsapp', i) as boolean;
+						if (sendAutomaticWhatsapp) {
+							body.send_automatic_whatsapp = sendAutomaticWhatsapp;
+						}
+						
+						const sendWhatsappSignedFile = this.getNodeParameter('send_automatic_whatsapp_signed_file', i) as boolean;
+						if (sendWhatsappSignedFile) {
+							body.send_automatic_whatsapp_signed_file = sendWhatsappSignedFile;
+						}
+						
+						const signatureOrderActive = this.getNodeParameter('signature_order_active', i) as boolean;
+						if (signatureOrderActive) {
+							body.signature_order_active = signatureOrderActive;
+						}
+						
+						// Add template data (variables) if provided
 						const templateData = this.getNodeParameter('templateData', i) as IDataObject;
 						const variables = (templateData?.variable as IDataObject[]) || [];
 						
-						this.logger.debug(`Create Document from Template Request - Template Data: ${JSON.stringify(templateData)}`);
-						this.logger.debug(`Create Document from Template Request - Variables: ${JSON.stringify(variables)}`);
+						this.logger.debug(`Create Document from Template - Template Data: ${JSON.stringify(templateData)}`);
+						this.logger.debug(`Create Document from Template - Variables: ${JSON.stringify(variables)}`);
 						
 						if (Array.isArray(variables) && variables.length > 0) {
 							const dataArray = variables
 								.map((entry) => ({ de: (entry.variableName as string) || '', para: (entry.variableValue as string) || '' }))
 								.filter((v) => v.de && v.para);
 							
-							this.logger.debug(`Create Document from Template Request - Data Array: ${JSON.stringify(dataArray)}`);
+							this.logger.debug(`Create Document from Template - Data Array: ${JSON.stringify(dataArray)}`);
 							
-							if (dataArray.length > 0) {
-								body.data = dataArray;
+							// Validate that we have at least one valid variable
+							if (dataArray.length === 0) {
+								this.logger.warn('No valid template variables found. All variables must have both name and value.');
+							} else {
+								// Validate variable format according to ZapSign API docs
+								const invalidVars = dataArray.filter(v => !v.de.trim() || !v.para.trim());
+								if (invalidVars.length > 0) {
+									this.logger.warn(`Some template variables have empty names or values: ${JSON.stringify(invalidVars)}`);
+								}
+								
+								// Only add valid variables to the request
+								const validVars = dataArray.filter(v => v.de.trim() && v.para.trim());
+								if (validVars.length > 0) {
+									body.data = validVars;
+									this.logger.debug(`Added ${validVars.length} valid template variables to request`);
+								}
+							}
+						}
+						
+						// Add metadata if provided
+						const metadata = this.getNodeParameter('metadata', i) as IDataObject;
+						const metadataEntries = (metadata?.metadata as IDataObject[]) || [];
+						
+						if (Array.isArray(metadataEntries) && metadataEntries.length > 0) {
+							const metadataArray = metadataEntries
+								.map((entry) => ({ key: (entry.key as string) || '', value: (entry.value as string) || '' }))
+								.filter((m) => m.key && m.value);
+							
+							if (metadataArray.length > 0) {
+								body.metadata = metadataArray;
+								this.logger.debug(`Added ${metadataArray.length} metadata entries to request`);
 							}
 						}
 
-						// Add additional fields if provided
-						const templateAdditionalFields = this.getNodeParameter('templateAdditionalFields', i) as IDataObject;
-						if (templateAdditionalFields && Object.keys(templateAdditionalFields).length > 0) {
-							Object.assign(body, templateAdditionalFields);
-						}
-
-						this.logger.debug(`Create Document from Template Request - Final Body: ${JSON.stringify(body)}`);
-
-						// According to ZapSign API docs: https://docs.zapsign.com.br/documentos/criar-documento-via-modelo
 						const options: IRequestOptions = {
 							method: 'POST',
 							url: `${baseUrl}/api/v1/models/create-doc/`,
@@ -2941,6 +3620,20 @@ export class ZapSign implements INodeType {
 						} catch (error) {
 							this.logger.error(`Create Document from Template Error: ${error.message}`);
 							this.logger.error(`Create Document from Template Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages based on common issues
+							if (error.message.includes('400') || error.message.includes('Bad Request')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Bad request - please check your parameters. Common issues:\n` +
+									`1. Template token is invalid or expired\n` +
+									`2. Signer name is missing or invalid\n` +
+									`3. Template variables have invalid names or values\n` +
+									`4. Required fields are missing\n\n` +
+									`Request body: ${JSON.stringify(body)}`, 
+									{ itemIndex: i }
+								);
+							}
+							
 							throw error;
 						}
 					} else if (operation === 'createTemplateDocx') {
@@ -3055,44 +3748,459 @@ export class ZapSign implements INodeType {
 						const personCpf = this.getNodeParameter('personCpf', i) as string;
 						const personName = this.getNodeParameter('personName', i, '') as string;
 						const externalId = this.getNodeParameter('bcExternalId', i, '') as string;
-						const body: IDataObject = { cpf: personCpf };
-						if (personName) body.name = personName;
-						if (externalId) body.external_id = externalId;
+						const forceCreation = this.getNodeParameter('forceCreation', i, true) as boolean;
+						
+						// Add debug logging
+						this.logger.debug(`Create Person Background Check - CPF: ${personCpf}`);
+						this.logger.debug(`Create Person Background Check - Name: ${personName}`);
+						this.logger.debug(`Create Person Background Check - External ID: ${externalId}`);
+						this.logger.debug(`Create Person Background Check - Force Creation: ${forceCreation}`);
+						this.logger.debug(`Create Person Background Check - Base URL: ${baseUrl}`);
+						
+						// Build request body according to ZapSign API documentation
+						const body: IDataObject = {
+							user_authorized: true,
+							force_creation: forceCreation,
+							type: 'person',
+							country: 'BR',
+							national_id: personCpf
+						};
+						
+						// Add optional fields if provided
+						if (personName) {
+							const nameParts = personName.trim().split(' ');
+							if (nameParts.length > 0) {
+								body.first_name = nameParts[0];
+								if (nameParts.length > 1) {
+									body.last_name = nameParts.slice(1).join(' ');
+								}
+							}
+						}
+						if (externalId) body.custom_input = externalId;
+						
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/background-checks/person/`,
+							url: `${baseUrl}/api/v1/checks/`,
 							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
 						};
+						
+						this.logger.debug(`Create Person Background Check - URL: ${options.url}`);
+						this.logger.debug(`Create Person Background Check - Body: ${JSON.stringify(body)}`);
+						
+						try {
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Create Person Background Check Error: ${error.message}`);
+							this.logger.error(`Create Person Background Check Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages
+							if (error.message.includes('404') || error.message.includes('not be found')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Background Check feature not available (404 error).\n\n` +
+									`Possible causes:\n` +
+									`1. Background checks may not be included in your ZapSign plan\n` +
+									`2. This feature may require additional permissions or account upgrade\n` +
+									`3. The API endpoint may have changed or been deprecated\n` +
+									`4. Your ZapSign account may not have access to this feature\n\n` +
+									`Please contact ZapSign support to verify if background checks are available for your account.\n\n` +
+									`Technical details:\n` +
+									`- Request URL: ${options.url}\n` +
+									`- CPF: ${personCpf}\n` +
+									`- Status: 404 (Not Found)`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
+						}
 					} else if (operation === 'createCompany') {
 						const companyCnpj = this.getNodeParameter('companyCnpj', i) as string;
+						const companyName = this.getNodeParameter('companyName', i, '') as string;
 						const externalId = this.getNodeParameter('bcExternalId', i, '') as string;
-						const body: IDataObject = { cnpj: companyCnpj };
-						if (externalId) body.external_id = externalId;
+						const forceCreation = this.getNodeParameter('forceCreation', i, true) as boolean;
+						
+						// Add debug logging
+						this.logger.debug(`Create Company Background Check - CNPJ: ${companyCnpj}`);
+						this.logger.debug(`Create Company Background Check - Company Name: ${companyName}`);
+						this.logger.debug(`Create Company Background Check - External ID: ${externalId}`);
+						this.logger.debug(`Create Company Background Check - Force Creation: ${forceCreation}`);
+						this.logger.debug(`Create Company Background Check - Base URL: ${baseUrl}`);
+						
+						// Build request body according to ZapSign API documentation
+						const body: IDataObject = {
+							user_authorized: true,
+							force_creation: forceCreation,
+							type: 'company',
+							country: 'BR',
+							tax_id: companyCnpj
+						};
+						
+						// Add optional fields if provided
+						if (companyName) body.company_name = companyName;
+						if (externalId) body.custom_input = externalId;
+						
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/v1/background-checks/company/`,
+							url: `${baseUrl}/api/v1/checks/`,
 							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
 						};
+						
+						this.logger.debug(`Create Company Background Check - URL: ${options.url}`);
+						this.logger.debug(`Create Company Background Check - Body: ${JSON.stringify(body)}`);
+						
+						try {
 						const responseData = await requestJson(this, options);
 						pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Create Company Background Check Error: ${error.message}`);
+							this.logger.error(`Create Company Background Check Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages
+							if (error.message.includes('404') || error.message.includes('not be found')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Background Check feature not available (404 error).\n\n` +
+									`Possible causes:\n` +
+									`1. Background checks may not be included in your ZapSign plan\n` +
+									`2. This feature may require additional permissions or account upgrade\n` +
+									`3. The API endpoint may have changed or been deprecated\n` +
+									`4. Your ZapSign account may not have access to this feature\n\n` +
+									`Please contact ZapSign support to verify if background checks are available for your account.\n\n` +
+									`Technical details:\n` +
+									`- Request URL: ${options.url}\n` +
+									`- CNPJ: ${companyCnpj}\n` +
+									`- Status: 404 (Not Found)`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
+						}
 					} else if (operation === 'get') {
 						const checkToken = this.getNodeParameter('checkToken', i) as string;
+						
+						// Add debug logging
+						this.logger.debug(`Retrieve Background Check - Check Token: ${checkToken}`);
+						this.logger.debug(`Retrieve Background Check - Base URL: ${baseUrl}`);
+						
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/api/v1/background-checks/${encodeURIComponent(checkToken)}/`,
+							url: `${baseUrl}/api/v1/checks/${encodeURIComponent(checkToken)}/`,
 						};
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
+						
+						this.logger.debug(`Retrieve Background Check - URL: ${options.url}`);
+						
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Retrieve Background Check Error: ${error.message}`);
+							this.logger.error(`Retrieve Background Check Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages
+							if (error.message.includes('404') || error.message.includes('not be found')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Background check not found (404 error).\n\n` +
+									`Possible causes:\n` +
+									`1. Invalid check token provided\n` +
+									`2. Background check may have expired or been deleted\n` +
+									`3. Check token format is incorrect\n` +
+									`4. You may not have access to this background check\n\n` +
+									`Please verify:\n` +
+									`- The check token is valid and correctly formatted (starts with "CHK")\n` +
+									`- The background check was created successfully\n` +
+									`- You have proper permissions to access this check\n\n` +
+									`Technical details:\n` +
+									`- Check Token: ${checkToken}\n` +
+									`- API Endpoint: ${options.url}\n` +
+									`- Status: 404 (Not Found)`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
+						}
 					} else if (operation === 'details') {
 						const checkToken = this.getNodeParameter('checkToken', i) as string;
+						
+						// Add debug logging
+						this.logger.debug(`Retrieve Background Check Details - Check Token: ${checkToken}`);
+						this.logger.debug(`Retrieve Background Check Details - Base URL: ${baseUrl}`);
+						
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/api/v1/background-checks/${encodeURIComponent(checkToken)}/details/`,
+							url: `${baseUrl}/api/v1/checks/${encodeURIComponent(checkToken)}/details/`,
 						};
-						const responseData = await requestJson(this, options);
-						pushResult(returnData, responseData);
+						
+						this.logger.debug(`Retrieve Background Check Details - URL: ${options.url}`);
+						
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Retrieve Background Check Details Error: ${error.message}`);
+							this.logger.error(`Retrieve Background Check Details Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages
+							if (error.message.includes('404') || error.message.includes('not be found')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Background check details not found (404 error).\n\n` +
+									`Possible causes:\n` +
+									`1. Invalid check token provided\n` +
+									`2. Background check may have expired or been deleted\n` +
+									`3. Check token format is incorrect\n` +
+									`4. You may not have access to this background check\n` +
+									`5. The background check may still be in progress\n\n` +
+									`Please verify:\n` +
+									`- The check token is valid and correctly formatted (starts with "CHK")\n` +
+									`- The background check was created successfully and completed\n` +
+									`- You have proper permissions to access this check\n` +
+									`- The check status is "completed" before requesting details\n\n` +
+									`Technical details:\n` +
+									`- Check Token: ${checkToken}\n` +
+									`- API Endpoint: ${options.url}\n` +
+									`- Status: 404 (Not Found)`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
+						}
+					}
+				} else if (resource === 'partnership') {
+					if (operation === 'createAccount') {
+						// Create partner account
+						const email = this.getNodeParameter('partnerEmail', i) as string;
+						const phoneNumber = this.getNodeParameter('partnerPhoneNumber', i, '') as string;
+						const phoneCountry = this.getNodeParameter('partnerPhoneCountry', i, '55') as string;
+						const country = this.getNodeParameter('partnerCountry', i) as string;
+						const lang = this.getNodeParameter('partnerLang', i) as string;
+						const companyName = this.getNodeParameter('partnerCompanyName', i) as string;
+						
+						// Add debug logging
+						this.logger.debug(`Create Partner Account - Email: ${email}`);
+						this.logger.debug(`Create Partner Account - Phone: ${phoneCountry} ${phoneNumber}`);
+						this.logger.debug(`Create Partner Account - Country: ${country}`);
+						this.logger.debug(`Create Partner Account - Language: ${lang}`);
+						this.logger.debug(`Create Partner Account - Company Name: ${companyName}`);
+						this.logger.debug(`Create Partner Account - Base URL: ${baseUrl}`);
+						
+						// According to ZapSign API docs: https://docs.zapsign.com.br/english/partnerships/create-account
+						const body: IDataObject = {
+							country,
+							lang,
+							company_name: companyName,
+						};
+						
+						// Only add email if provided
+						if (email) body.email = email;
+						
+						// Only add phone fields if phone number is provided
+						if (phoneNumber) {
+							body.phone_number = phoneNumber;
+							body.phone_country = phoneCountry;
+						}
+						
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/partner/company/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
+						};
+						
+						this.logger.debug(`Create Partner Account - URL: ${options.url}`);
+						this.logger.debug(`Create Partner Account - Body: ${JSON.stringify(options.body)}`);
+						
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Create Partner Account Error: ${error.message}`);
+							this.logger.error(`Create Partner Account Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages
+							if (error.message.includes('400') || error.message.includes('Bad request')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Partner account creation failed (400 Bad Request).\n\n` +
+									`Common issues that cause this error:\n` +
+									`1. Missing required fields (country, lang, company_name)\n` +
+									`2. Invalid email format\n` +
+									`3. Invalid country or language codes\n` +
+									`4. Phone number format issues\n\n` +
+									`Please check:\n` +
+									`- All required fields are filled\n` +
+									`- Email format is valid (if provided)\n` +
+									`- Country and language codes are correct\n` +
+									`- Phone number format matches country requirements\n\n` +
+									`Technical details:\n` +
+									`- API Endpoint: ${options.url}\n` +
+									`- Status: 400 (Bad Request)\n` +
+									`- Company Name: ${companyName}\n` +
+									`- Country: ${country}\n` +
+									`- Language: ${lang}`, 
+									{ itemIndex: i }
+								);
+							} else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Partner account creation failed (403 Forbidden).\n\n` +
+									`Possible causes:\n` +
+									`1. Your account doesn't have partner permissions\n` +
+									`2. Your plan doesn't support partner features\n` +
+									`3. You're trying to create an account from another partner account\n\n` +
+									`Please contact ZapSign support to enable partner features on your account.`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
+						}
+						
+					} else if (operation === 'updatePaymentStatus') {
+						// Update partner payment status
+						const clientApiToken = this.getNodeParameter('clientApiToken', i) as string;
+						const paymentStatus = this.getNodeParameter('paymentStatus', i) as string;
+						
+						// Add debug logging
+						this.logger.debug(`Update Payment Status - Client API Token: ${clientApiToken}`);
+						this.logger.debug(`Update Payment Status - Payment Status: ${paymentStatus}`);
+						this.logger.debug(`Update Payment Status - Base URL: ${baseUrl}`);
+						
+						// According to ZapSign API docs: https://docs.zapsign.com.br/english/partnerships/update-payment-status
+						const body: IDataObject = {
+							client_api_token: clientApiToken,
+							payment_status: paymentStatus,
+						};
+						
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/partner/update-payment-status/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
+						};
+						
+						this.logger.debug(`Update Payment Status - URL: ${options.url}`);
+						this.logger.debug(`Update Payment Status - Body: ${JSON.stringify(options.body)}`);
+						
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Update Payment Status Error: ${error.message}`);
+							this.logger.error(`Update Payment Status Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages
+							if (error.message.includes('400') || error.message.includes('Bad request')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Payment status update failed (400 Bad Request).\n\n` +
+									`Common issues that cause this error:\n` +
+									`1. Invalid client API token format\n` +
+									`2. Invalid payment status value\n` +
+									`3. Missing required fields\n\n` +
+									`Please check:\n` +
+									`- Client API token is valid and correctly formatted\n` +
+									`- Payment status is either "adimplente" or "inadimplente"\n` +
+									`- All required fields are provided\n\n` +
+									`Technical details:\n` +
+									`- API Endpoint: ${options.url}\n` +
+									`- Status: 400 (Bad Request)\n` +
+									`- Client API Token: ${clientApiToken}\n` +
+									`- Payment Status: ${paymentStatus}`, 
+									{ itemIndex: i }
+								);
+							} else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Payment status update failed (403 Forbidden).\n\n` +
+									`Possible causes:\n` +
+									`1. Your account doesn't have partner permissions\n` +
+									`2. The client account is not under your control\n` +
+									`3. Invalid authentication token\n\n` +
+									`Please verify:\n` +
+									`- You have partner permissions\n` +
+									`- The client account belongs to your partner network\n` +
+									`- Your authentication token is valid`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
+						}
+					}
+				} else if (resource === 'timestamp') {
+					if (operation === 'add') {
+						// Add timestamp to document
+						const documentUrl = this.getNodeParameter('timestampDocumentUrl', i) as string;
+						
+						// Add debug logging
+						this.logger.debug(`Add Timestamp - Document URL: ${documentUrl}`);
+						this.logger.debug(`Add Timestamp - Base URL: ${baseUrl}`);
+						
+						// According to ZapSign API docs: https://docs.zapsign.com.br/english/timestamp/criar-documento
+						const body: IDataObject = {
+							url: documentUrl,
+						};
+						
+						const options: IRequestOptions = {
+							method: 'POST',
+							url: `${baseUrl}/api/v1/timestamp/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
+						};
+						
+						this.logger.debug(`Add Timestamp - URL: ${options.url}`);
+						this.logger.debug(`Add Timestamp - Body: ${JSON.stringify(options.body)}`);
+						
+						try {
+							const responseData = await requestJson(this, options);
+							pushResult(returnData, responseData);
+						} catch (error) {
+							this.logger.error(`Add Timestamp Error: ${error.message}`);
+							this.logger.error(`Add Timestamp Request Options: ${JSON.stringify(options)}`);
+							
+							// Provide more specific error messages
+							if (error.message.includes('402') || error.message.includes('Payment Required')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Timestamp addition failed (402 Payment Required).\n\n` +
+									`This feature requires a specific plan that includes timestamp functionality.\n\n` +
+									`Please contact ZapSign support to add this functionality to your plan.\n\n` +
+									`Technical details:\n` +
+									`- API Endpoint: ${options.url}\n` +
+									`- Status: 402 (Payment Required)`, 
+									{ itemIndex: i }
+								);
+							} else if (error.message.includes('400') || error.message.includes('Bad request')) {
+								throw new NodeOperationError(this.getNode(), 
+									`Timestamp addition failed (400 Bad Request).\n\n` +
+									`Common issues that cause this error:\n` +
+									`1. Invalid document URL\n` +
+									`2. Document format not supported (only PDF and DOCX)\n` +
+									`3. Document size exceeds 10MB limit\n` +
+									`4. Document URL is not accessible\n\n` +
+									`Please check:\n` +
+									`- Document URL is publicly accessible\n` +
+									`- Document is in PDF or DOCX format\n` +
+									`- Document size is under 10MB\n\n` +
+									`Technical details:\n` +
+									`- API Endpoint: ${options.url}\n` +
+									`- Status: 400 (Bad Request)\n` +
+									`- Document URL: ${documentUrl}`, 
+									{ itemIndex: i }
+								);
+							}
+							
+							throw error;
+						}
 					}
 				} else if (resource === 'webhook') {
 					if (operation === 'create') {
@@ -3138,12 +4246,22 @@ export class ZapSign implements INodeType {
 						this.logger.debug(`Delete Webhook Request - Base URL: ${baseUrl}`);
 
 						// According to ZapSign API docs: https://docs.zapsign.com.br/webhooks/criar-webhook
+						// The delete endpoint expects the webhook ID in the request body
+						const body: IDataObject = {
+							id: webhookId,
+						};
+
 						const options: IRequestOptions = {
 							method: 'DELETE',
 							url: `${baseUrl}/api/v1/user/company/webhook/delete/`,
+							body,
+							headers: {
+								'Content-Type': 'application/json',
+							},
 						};
 
 						this.logger.debug(`Delete Webhook Request - URL: ${options.url}`);
+						this.logger.debug(`Delete Webhook Request - Body: ${JSON.stringify(body)}`);
 
 						try {
 							const responseData = await requestJson(this, options);
@@ -3170,6 +4288,7 @@ export class ZapSign implements INodeType {
 			}
 		}
 
+		this.logger.info(`Execution loop completed. Processed ${items.length} items. Returning ${returnData.length} results.`);
 		return [this.helpers.returnJsonArray(returnData)];
 	}
 }
